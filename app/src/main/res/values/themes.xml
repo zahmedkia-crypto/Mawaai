@@ -1,7 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Mawaai" parent="android:Theme.Material.Light.NoActionBar" />
-    
+    <!--
+        Phase 18 (edge-to-edge correctness):
+
+        MainActivity.onCreate() calls `enableEdgeToEdge(...)` so the status
+        and navigation bars are fully transparent. Whatever `android:window-
+        Background` this theme advertises bleeds through BEHIND those bars
+        until Compose finishes its first frame.
+
+        The previous parent `Theme.Material.Light.NoActionBar` painted that
+        bed WHITE, leaving a visible white strip under the transparent
+        status bar (above the Skip / تخطي button) and another below the
+        gesture/nav bar (behind bottom action rows) until `ThemedBackground`
+        re-painted it dark.
+
+        Fix: pin the window background, status bar, and nav bar to dark/
+        transparent at the XML level too. `#FF0A0510` is the brand `Deep-
+        Night` colour (same value the splash screen uses) so the seam from
+        splash → activity → Compose is invisible.
+    -->
+    <style name="Theme.Mawaai" parent="Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">#FF0A0510</item>
+        <item name="android:colorBackground">#FF0A0510</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+
     <style name="Theme.Mawaai.Splash" parent="Theme.SplashScreen">
         <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
         <item name="windowSplashScreenBackground">#0A0510</item>
