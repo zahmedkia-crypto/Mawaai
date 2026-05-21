@@ -1,0 +1,110 @@
+{
+  "categories": [
+    {
+      "id": "henna",
+      "nameAr": "الحناء",
+      "nameEn": "Henna",
+      "descriptionAr": "نقوش الحناء للأيدي والأرجل والأكف",
+      "iconKey": "henna",
+      "accentColor": "#8B2F0F",
+      "subTypes": [
+        { "id": "hand",      "nameAr": "حناء يد",          "nameEn": "Hand Henna" },
+        { "id": "palm",      "nameAr": "حناء كف",          "nameEn": "Palm Henna" },
+        { "id": "foot",      "nameAr": "حناء قدم",         "nameEn": "Foot Henna" },
+        { "id": "full_arm",  "nameAr": "حناء ذراع كامل",   "nameEn": "Full Arm Henna" }
+      ],
+      "styles": [
+        { "id": "sudanese", "nameAr": "النمط السوداني", "nameEn": "Sudanese" },
+        { "id": "arabic",   "nameAr": "النمط العربي",   "nameEn": "Arabic" },
+        { "id": "indian",   "nameAr": "النمط الهندي",   "nameEn": "Indian" }
+      ]
+    },
+    {
+      "id": "abaya",
+      "nameAr": "العبايات الإسلامية",
+      "nameEn": "Islamic Abayas",
+      "descriptionAr": "تصاميم عبايات إسلامية كلاسيكية ومطرزة ومرصعة وعصرية",
+      "iconKey": "abaya",
+      "accentColor": "#1B1B3A",
+      "subTypes": [
+        { "id": "abaya_classic",     "nameAr": "كلاسيكية",          "nameEn": "Classic" },
+        { "id": "abaya_embroidered", "nameAr": "مطرزة",              "nameEn": "Embroidered" },
+        { "id": "abaya_beaded",      "nameAr": "مرصعة بالخرز",      "nameEn": "Beaded" },
+        { "id": "abaya_modern",      "nameAr": "عصرية",              "nameEn": "Modern" },
+        { "id": "abaya_kaftan",      "nameAr": "قفطان",              "nameEn": "Kaftan" }
+      ],
+      "styles": []
+    },
+    {
+      "id": "walls",
+      "nameAr": "الجداريات",
+      "nameEn": "Walls",
+      "descriptionAr": "جداريات داخلية وخارجية، محاريب، أسقف ومجالس عربية",
+      "iconKey": "walls",
+      "accentColor": "#1B5E20",
+      "subTypes": [
+        { "id": "interior_wall", "nameAr": "جدار داخلي",          "nameEn": "Interior Wall" },
+        { "id": "exterior_wall", "nameAr": "جدار خارجي",          "nameEn": "Exterior Wall" },
+        { "id": "majlis",        "nameAr": "جدار مجلس عربي",       "nameEn": "Majlis Wall" },
+        { "id": "mihrab",        "nameAr": "محراب مسجد",           "nameEn": "Mosque Mihrab" },
+        { "id": "ceiling",       "nameAr": "زخرفة سقف",            "nameEn": "Ceiling" },
+        { "id": "exhibition",    "nameAr": "لوحة معرض",            "nameEn": "Exhibition Piece" }
+      ],
+      "styles": []
+    },
+    {
+      "id": "thob_sudani",
+      "nameAr": "التوب السوداني",
+      "nameEn": "Sudanese Thob",
+      "descriptionAr": "توب سوداني تقليدي: الرقمة، الفتلة، الفردة، والزراف الحريري",
+      "iconKey": "thob_sudani",
+      "accentColor": "#B8860B",
+      "subTypes": [
+        { "id": "toub_raqma",  "nameAr": "توب الرقمة",  "nameEn": "Raqma (Embroidered)" },
+        { "id": "toub_fatla",  "nameAr": "توب الفتلة",  "nameEn": "Fatla (Gold Thread)" },
+        { "id": "toub_farda",  "nameAr": "توب الفردة",  "nameEn": "Farda (Ceremonial)" },
+        { "id": "toub_zaraf",  "nameAr": "توب الزراف",  "nameEn": "Zaraf (Silk)" }
+      ],
+      "styles": []
+    }
+  ],
+  "conversionStyles": [
+    {
+      "id": "auto",
+      "nameAr": "تلقائي — موصى به",
+      "nameEn": "Auto (Recommended)",
+      "descriptionAr": "يختار الذكاء الاصطناعي أفضل أسلوب تلقائياً"
+    },
+    {
+      "id": "vector_clean",
+      "nameAr": "نظيف ومتجه",
+      "nameEn": "Vector Clean",
+      "descriptionAr": "يحوّل الرسم إلى شكل رقمي نظيف وحواف حادة"
+    },
+    {
+      "id": "artistic",
+      "nameAr": "رسم فني",
+      "nameEn": "Artistic Illustration",
+      "descriptionAr": "أسلوب فني رقمي غني بالملمس والحركة"
+    },
+    {
+      "id": "minimalist",
+      "nameAr": "مبسّط",
+      "nameEn": "Minimalist",
+      "descriptionAr": "يبسّط إلى أشكال أساسية وألوان مسطحة"
+    },
+    {
+      "id": "realistic",
+      "nameAr": "واقعي",
+      "nameEn": "Realistic Render",
+      "descriptionAr": "يضيف إضاءة وظلال ومحاكاة عمق ثلاثي"
+    }
+  ],
+  "colorThemes": [
+    { "id": "mono",     "nameAr": "أحادي اللون",    "nameEn": "Monochrome" },
+    { "id": "original", "nameAr": "الألوان الأصلية", "nameEn": "Original Colors" },
+    { "id": "warm",     "nameAr": "درجات دافئة",    "nameEn": "Warm Palette" },
+    { "id": "cool",     "nameAr": "درجات باردة",    "nameEn": "Cool Palette" },
+    { "id": "ai",       "nameAr": "ذكاء اصطناعي",   "nameEn": "AI-Suggested" }
+  ]
+}

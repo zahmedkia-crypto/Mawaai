@@ -1,0 +1,289 @@
+<resources>
+    <string name="app_name">مأواي</string>
+
+    <!-- Design Feature -->
+    <string name="design_app_title">تصاميم إبداعية</string>
+    <string name="design_tab_specialized">تصاميم تخصصية</string>
+    <string name="design_tab_converter">محوّل الرسم</string>
+    <string name="design_entry_card_title">تصاميم إبداعية ✨</string>
+    <string name="design_entry_card_subtitle">حناء، عبايات، جداريات، التوب السوداني، ومحوّل الرسم بالذكاء الاصطناعي</string>
+
+    <!-- Tab 1 -->
+    <string name="design_tab1_headline">التصاميم التخصصية</string>
+    <string name="design_tab1_subheadline">اختر فئة للبدء</string>
+    <string name="category_henna">الحناء</string>
+    <string name="category_henna_en">Henna</string>
+    <string name="category_abaya">العبايات الإسلامية</string>
+    <string name="category_abaya_en">Abayas</string>
+    <string name="category_walls">الجداريات</string>
+    <string name="category_walls_en">Walls</string>
+    <string name="category_thob_sudani">التوب السوداني</string>
+    <string name="category_thob_sudani_en">Sudanese Thob</string>
+    <string name="subtype_toub_raqma">توب الرقمة</string>
+    <string name="subtype_toub_fatla">توب الفتلة</string>
+    <string name="subtype_toub_farda">توب الفردة</string>
+    <string name="subtype_toub_zaraf">توب الزراف</string>
+
+    <!-- Input methods -->
+    <string name="input_draw_title">ارسم الآن</string>
+    <string name="input_draw_subtitle">افتح لوحة الرسم الاحترافية</string>
+    <string name="input_upload_title">رفع صورة</string>
+    <string name="input_upload_subtitle">اختر من المعرض</string>
+    <string name="input_camera_title">التقط صورة</string>
+    <string name="input_camera_subtitle">التقاط مباشر بالكاميرا</string>
+
+    <!-- Tab 2 -->
+    <string name="converter_headline">حوّل أي رسم إلى تصميم احترافي</string>
+    <string name="converter_subheadline">ارسم أي شيء وسيحوّله الذكاء الاصطناعي</string>
+    <string name="converter_tip_anything">أي شيء ترسمه سيتحول إلى تصميم رائع</string>
+    <string name="converter_inspiration_title">أفكار للإلهام</string>
+    <string name="converter_inspiration_refresh">تحديث الأفكار</string>
+
+    <!-- Styles -->
+    <string name="style_vector_clean">نظيف ومتجه</string>
+    <string name="style_artistic">رسم فني</string>
+    <string name="style_minimalist">مبسّط</string>
+    <string name="style_realistic">واقعي</string>
+    <string name="style_auto">تلقائي (موصى به)</string>
+
+    <!-- Flow screens -->
+    <string name="screen_preview">المعاينة</string>
+    <string name="screen_suggestions">اقتراحات الذكاء الاصطناعي</string>
+    <string name="screen_processing">جارٍ المعالجة</string>
+    <string name="screen_result">النتيجة</string>
+    <string name="screen_template_gallery">معرض القوالب</string>
+    <string name="preview_missing_input">لم يتم اختيار صورة</string>
+
+    <!-- Actions -->
+    <string name="action_back">رجوع</string>
+    <string name="action_continue">متابعة</string>
+    <string name="action_save">حفظ</string>
+    <string name="action_share">مشاركة</string>
+    <string name="action_edit_again">تعديل مجدداً</string>
+    <string name="action_try_again">إعادة المحاولة</string>
+    <string name="action_close">إغلاق</string>
+    <string name="action_cancel">إلغاء</string>
+
+    <!-- Processing stages -->
+    <string name="stage_analyzing">جارٍ تحليل الرسم…</string>
+    <string name="stage_extracting">استخراج العناصر…</string>
+    <string name="stage_applying">تطبيق الأسلوب…</string>
+    <string name="stage_generating">توليد التنويعات…</string>
+    <string name="stage_done">اكتمل</string>
+    <string name="stage_edge_detecting">استخراج الحواف…</string>
+    <string name="stage_upscaling">رفع الدقة…</string>
+
+    <!-- Fallback / stub messages -->
+    <string name="ai_model_missing">النموذج الذكي غير مُثبّت بعد. سيتم عرض نتيجة مؤقتة.</string>
+    <string name="feature_coming_soon">هذه الميزة قيد التطوير — قريباً</string>
+
+    <!-- Suggestions screen -->
+    <string name="suggestions_pick_skin_tone">اختاري لون البشرة</string>
+    <string name="suggestions_pick_fabric_tone">اختاري لون القماش</string>
+    <string name="suggestions_pick_style">اختاري الأسلوب</string>
+    <string name="skin_tone_light">فاتحة</string>
+    <string name="skin_tone_medium_light">متوسطة فاتحة</string>
+    <string name="skin_tone_medium">متوسطة</string>
+    <string name="skin_tone_medium_dark">متوسطة داكنة</string>
+    <string name="skin_tone_deep">داكنة</string>
+    <string name="fabric_tone_white">أبيض</string>
+    <string name="fabric_tone_beige">بيج</string>
+    <string name="fabric_tone_gold">ذهبي</string>
+    <string name="fabric_tone_navy">كحلي</string>
+    <string name="fabric_tone_black">أسود</string>
+    <string name="fabric_tone_burgundy">خمري</string>
+
+    <!-- Processing screen -->
+    <string name="processing_error_title">فشلت المعالجة</string>
+    <string name="processing_retry">إعادة المحاولة</string>
+
+    <!-- Template gallery -->
+    <string name="template_gallery_apply">تطبيق القالب</string>
+    <string name="template_gallery_empty">لا توجد قوالب متاحة لهذه الفئة بعد</string>
+
+    <!-- Result -->
+    <string name="result_saved_toast">تم الحفظ في المعرض</string>
+    <string name="result_save_failed">تعذّر الحفظ</string>
+    <string name="action_customize_color">تغيير اللون</string>
+
+    <!-- Customize screen -->
+    <string name="customize_title">تخصيص اللون</string>
+    <string name="customize_presets_title">ألوان جاهزة</string>
+    <string name="customize_hex_label">كود اللون</string>
+    <string name="customize_hue">درجة اللون</string>
+    <string name="customize_saturation">التشبع</string>
+    <string name="customize_lightness">الإضاءة</string>
+    <string name="customize_save">حفظ</string>
+    <string name="customize_recoloring">جارٍ تغيير اللون…</string>
+    <string name="customize_tab_hsl">HSL</string>
+    <string name="customize_tab_rgb">RGB</string>
+    <string name="customize_red">أحمر</string>
+    <string name="customize_green">أخضر</string>
+    <string name="customize_blue">أزرق</string>
+
+    <!-- Memory detail + add -->
+    <string name="memory_share_chooser">مشاركة الذكرى عبر</string>
+    <string name="memory_share_text">%1$s — %2$s</string>
+    <string name="add_memory_title_required">اكتبي عنوان الذكرى أولاً</string>
+    <string name="add_memory_saved">تم حفظ الذكرى 💕</string>
+    <string name="add_memory_save_failed">تعذّر حفظ الذكرى</string>
+
+    <!-- Permissions -->
+    <string name="permission_camera_denied">تم رفض إذن الكاميرا</string>
+
+    <!-- Canvas -->
+    <string name="canvas_title">لوحة الرسم</string>
+    <string name="canvas_brushes">الفُرَش</string>
+    <string name="canvas_layers">الطبقات</string>
+    <string name="canvas_colors">الألوان</string>
+    <string name="canvas_undo">تراجع</string>
+    <string name="canvas_redo">إعادة</string>
+    <string name="canvas_clear">مسح</string>
+    <string name="canvas_done">تم</string>
+    <string name="canvas_size">الحجم</string>
+    <string name="canvas_opacity">الشفافية</string>
+    <string name="canvas_hardness">الصلابة</string>
+    <string name="canvas_spacing">المسافة</string>
+    <string name="canvas_scatter">التشتيت</string>
+    <string name="canvas_jitter">تذبذب الحجم</string>
+    <string name="canvas_flow">التدفق</string>
+    <string name="canvas_layer_new">طبقة جديدة</string>
+    <string name="canvas_layer_delete">حذف الطبقة</string>
+    <string name="canvas_layer_duplicate">تكرار الطبقة</string>
+    <string name="canvas_layer_merge">دمج للأسفل</string>
+    <string name="canvas_blend">وضع المزج</string>
+    <string name="canvas_blend_normal">عادي</string>
+    <string name="canvas_blend_multiply">ضرب</string>
+    <string name="canvas_blend_overlay">تراكب</string>
+    <string name="canvas_blend_screen">شاشة</string>
+    <string name="canvas_blend_soft_light">إضاءة ناعمة</string>
+    <string name="canvas_symmetry">التماثل</string>
+    <string name="canvas_symmetry_off">إيقاف</string>
+    <string name="canvas_symmetry_v">عمودي</string>
+    <string name="canvas_symmetry_h">أفقي</string>
+    <string name="canvas_symmetry_2fold">إشعاعي ثنائي</string>
+    <string name="canvas_symmetry_4fold">إشعاعي رباعي</string>
+    <string name="canvas_symmetry_6fold">إشعاعي سداسي</string>
+    <string name="canvas_symmetry_8fold">إشعاعي ثماني</string>
+    <string name="canvas_shape_line">خط</string>
+    <string name="canvas_shape_rect">مستطيل</string>
+    <string name="canvas_shape_circle">دائرة</string>
+    <string name="canvas_shape_polygon">مضلع</string>
+    <string name="canvas_shape_star">نجمة</string>
+    <string name="canvas_tool_brush">فرشاة</string>
+    <string name="canvas_tool_eraser">ممحاة</string>
+    <string name="canvas_tool_fill">تعبئة</string>
+    <string name="canvas_tool_shape">شكل</string>
+    <string name="canvas_tool_select">تحديد</string>
+    <string name="canvas_tool_eyedropper">قطّارة الألوان</string>
+    <string name="canvas_color_hsb">HSB</string>
+    <string name="canvas_color_rgb">RGB</string>
+    <string name="canvas_color_hex">Hex</string>
+    <string name="canvas_color_palette">باليتة</string>
+    <string name="canvas_color_recents">حديثة</string>
+    <string name="canvas_save_artwork">حفظ العمل</string>
+    <string name="canvas_artwork_title_hint">عنوان العمل الفني</string>
+    <string name="canvas_pick_template">اختاري قالباً</string>
+    <string name="canvas_ai_tips">نصائح ذكية</string>
+
+    <!-- AI recommendations -->
+    <string name="recommendations_title">نصائح لتحسين الرسم</string>
+    <string name="recommendations_subtitle">طبّقي لمسة سريعة — يمكنكِ التراجع متى شئتِ</string>
+    <string name="recommendations_empty">لا توجد اقتراحات الآن — رسمك جميل كما هو 💕</string>
+    <string name="recommendations_loading">جارٍ تحليل رسمتك…</string>
+    <string name="recommendations_refresh">تحديث الاقتراحات</string>
+    <string name="recommendations_apply_success">تم التطبيق</string>
+    <string name="recommendations_apply_failed">تعذّر التطبيق</string>
+    <string name="recommendations_revert_success">تم التراجع</string>
+    <string name="recommendations_revert_failed">تعذّر التراجع</string>
+    <string name="recommendations_applying">جارٍ التطبيق…</string>
+    <string name="action_apply">تطبيق</string>
+    <string name="action_revert">تراجع</string>
+
+    <!-- Brush names -->
+    <string name="brush_pencil">قلم رصاص</string>
+    <string name="brush_ink">قلم حبر</string>
+    <string name="brush_calligraphy">خط عربي</string>
+    <string name="brush_marker">ماركر</string>
+    <string name="brush_airbrush">بخاخ</string>
+    <string name="brush_watercolor">ألوان مائية</string>
+    <string name="brush_henna">حناء</string>
+    <string name="brush_embroidery">تطريز</string>
+    <string name="brush_pattern">ختم نمط</string>
+    <string name="brush_charcoal">فحم</string>
+
+    <!-- Showcase (walls cinematic stage) -->
+    <string name="showcase_action">عرض في الصالة</string>
+    <string name="showcase_pick_scene">اختر المشهد</string>
+    <string name="showcase_pick_frame">اختر الإطار</string>
+    <string name="showcase_pick_lighting">اختر الإضاءة</string>
+    <string name="showcase_cinematic">عرض سينمائي</string>
+    <string name="showcase_export">تصدير</string>
+    <string name="showcase_scene_gallery">صالة فنية</string>
+    <string name="showcase_scene_living_room">غرفة معيشة</string>
+    <string name="showcase_scene_museum">قاعة متحف</string>
+    <string name="showcase_scene_outdoor">جدار خارجي</string>
+    <string name="showcase_scene_modern">قاعة عصرية</string>
+    <string name="showcase_scene_majlis">مجلس سوداني</string>
+    <string name="showcase_frame_none">بلا إطار</string>
+    <string name="showcase_frame_gold">إطار ذهبي مزخرف</string>
+    <string name="showcase_frame_modern">إطار عصري أسود</string>
+    <string name="showcase_frame_arabic">إطار عربي محفور</string>
+    <string name="showcase_lighting_warm">دافئة</string>
+    <string name="showcase_lighting_cool">باردة</string>
+    <string name="showcase_lighting_dramatic">درامية</string>
+    <string name="showcase_lighting_natural">طبيعية</string>
+    <string name="showcase_visitors_show">إظهار الزوار</string>
+    <string name="showcase_title_card">بطاقة العنوان</string>
+
+    <!-- Home -->
+    <string name="share_quote_subject">اقتباس</string>
+    <string name="share_quote_chooser">مشاركة الاقتباس</string>
+
+    <!-- User-chrome (TopBar titles + Settings) -->
+    <string name="topbar_compose_letter">كتابة رسالة 💌</string>
+    <string name="topbar_settings">الإعدادات ⚙️</string>
+    <string name="topbar_mood">مزاجنا 💕</string>
+    <string name="topbar_add_memory">ذكرى جديدة 💕</string>
+    <string name="topbar_letters">رسائلي لكِ 💌</string>
+    <string name="topbar_memories">ذكرياتنا 📸</string>
+    <string name="topbar_letter_detail">قراءة الرسالة 📖</string>
+    <string name="settings_section_profile">الملف الشخصي</string>
+    <string name="settings_section_notifications">الإشعارات</string>
+    <string name="settings_enable_notifications">تفعيل الإشعارات</string>
+    <string name="settings_section_privacy">الخصوصية</string>
+    <string name="settings_biometric_lock">قفل بالبصمة</string>
+    <string name="settings_partner_name">اسم الشريك</string>
+    <string name="settings_section_theme">المظهر</string>
+    <string name="settings_theme_auto">تلقائي (حسب الوقت)</string>
+    <string name="settings_theme_morning">صباحي</string>
+    <string name="settings_theme_night">ليلي</string>
+
+    <string name="zenquotes_attribution">الاقتباسات اليومية مقدمة من ZenQuotes API</string>
+    <string name="aladhan_attribution">التقويم الهجري مقدم من Aladhan API</string>
+
+    <!-- مولّد المشاهد الرومانسية بالذكاء الاصطناعي -->
+    <string name="ai_scene_card_title">مشهد رومانسي بالذكاء الاصطناعي</string>
+    <string name="ai_scene_card_subtitle">صف لي مشهدًا… وسأرسمه لكِ</string>
+    <string name="ai_scene_dialog_title">رسم مشهد رومانسي</string>
+    <string name="ai_scene_prompt_hint">مثال: \"حديقة بضوء القمر مليئة بالورود\"</string>
+    <string name="ai_scene_button_generate">ارسم</string>
+    <string name="ai_scene_button_save">احفظ في المعرض</string>
+    <string name="ai_scene_button_close">إغلاق</string>
+    <string name="ai_scene_button_retry">جرّب مرّة أخرى</string>
+    <string name="ai_scene_status_generating">يجري رسم مشهدكِ…</string>
+    <string name="ai_scene_status_saved">حُفظ في المعرض</string>
+    <string name="ai_scene_status_save_failed">تعذّر الحفظ في المعرض</string>
+    <string name="ai_scene_error_empty_prompt">من فضلكِ اكتب وصف المشهد أولاً.</string>
+    <string name="ai_scene_error_generation_failed">تعذّر توليد الصورة. تأكدي من الاتصال وحاولي مجددًا.</string>
+
+    <!-- مسار تطبيق القالب متعدد المراحل (Phase 25) -->
+    <string name="template_apply_stage_compose">دمج</string>
+    <string name="template_apply_stage_refine">صقل بالذكاء</string>
+    <string name="template_apply_stage_polish">تلميع</string>
+    <string name="template_apply_status_idle">جاهز</string>
+    <string name="template_apply_status_compose">الخطوة 1 من 3 — وضع تصميمك على القالب…</string>
+    <string name="template_apply_status_refine">الخطوة 2 من 3 — الذكاء الاصطناعي يدمج التصميم بشكل طبيعي…</string>
+    <string name="template_apply_status_polish">الخطوة 3 من 3 — تلميع نهائي…</string>
+    <string name="template_apply_status_done">انتهى</string>
+</resources>

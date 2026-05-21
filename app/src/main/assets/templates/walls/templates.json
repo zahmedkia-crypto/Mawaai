@@ -1,0 +1,25 @@
+{
+  "_doc": "Optional per-template overrides. Each entry's id must match the filename without extension. quad: [[x0,y0],[x1,y1],[x2,y2],[x3,y3]] in normalized [0..1] coordinates of the base bitmap, ordered top-left, top-right, bottom-right, bottom-left. Templates not listed here use the category defaults from TemplateCompositor (walls: NORMAL @ 0.95, 12% inset).",
+  "templates": [
+    {
+      "id": "wall_mockup_1",
+      "quad": [[0.26, 0.14], [0.80, 0.14], [0.80, 0.72], [0.26, 0.72]]
+    },
+    {
+      "id": "wall_mockup_2",
+      "quad": [[0.18, 0.12], [0.82, 0.12], [0.82, 0.72], [0.18, 0.72]]
+    },
+    {
+      "id": "wall_mockup_3",
+      "quad": [[0.20, 0.14], [0.80, 0.14], [0.80, 0.74], [0.20, 0.74]]
+    },
+    {
+      "id": "wall_mockup_4",
+      "quad": [[0.26, 0.12], [0.80, 0.12], [0.80, 0.72], [0.26, 0.72]]
+    },
+    {
+      "id": "wall_mockup_5",
+      "quad": [[0.22, 0.16], [0.78, 0.16], [0.78, 0.74], [0.22, 0.74]]
+    }
+  ]
+}

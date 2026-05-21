@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "620854337861",
+    "project_id": "mawaai-f8e5d",
+    "storage_bucket": "mawaai-f8e5d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:620854337861:android:196c5e7b97a26fa50c9e2c",
+        "android_client_info": {
+          "package_name": "com.mawaai.love.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAVeGReTw9taJGXUsFcGXAA2VM6Ky3brig"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

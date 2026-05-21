@@ -1,0 +1,301 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Retained for forward-compat (in-app credits / about screen). The
+         launcher manifest references launcher_label instead, so app_name
+         currently has no Kotlin caller. tools:ignore silences the
+         UnusedResources lint warning that would otherwise inflate the
+         baseline. -->
+    <string name="app_name" tools:ignore="UnusedResources">Mawaai</string>
+    <string name="launcher_label" translatable="false"></string>
+
+    <!-- Design Feature (English fallback) -->
+    <string name="design_app_title">Creative Designs</string>
+    <string name="design_tab_specialized">Specialized</string>
+    <string name="design_tab_converter">Converter</string>
+    <string name="design_entry_card_title">Creative Designs</string>
+    <string name="design_entry_card_subtitle">Henna, abayas, walls, Sudanese thob &amp; AI drawing converter</string>
+
+    <!-- Tab 1 -->
+    <string name="design_tab1_headline">Specialized Designs</string>
+    <string name="design_tab1_subheadline">Pick a category to begin</string>
+    <string name="category_henna">Henna</string>
+    <string name="category_henna_en">Henna</string>
+    <string name="category_abaya">Islamic Abayas</string>
+    <string name="category_abaya_en">Abayas</string>
+    <string name="category_walls">Walls</string>
+    <string name="category_walls_en">Walls</string>
+    <string name="category_thob_sudani">Sudanese Thob</string>
+    <string name="category_thob_sudani_en">Sudanese Thob</string>
+    <string name="subtype_toub_raqma">Raqma (Embroidered)</string>
+    <string name="subtype_toub_fatla">Fatla (Gold Thread)</string>
+    <string name="subtype_toub_farda">Farda (Ceremonial)</string>
+    <string name="subtype_toub_zaraf">Zaraf (Silk)</string>
+
+    <!-- Input methods -->
+    <string name="input_draw_title">Draw Now</string>
+    <string name="input_draw_subtitle">Open the professional canvas</string>
+    <string name="input_upload_title">Upload Image</string>
+    <string name="input_upload_subtitle">Choose from your gallery</string>
+    <string name="input_camera_title">Take Photo</string>
+    <string name="input_camera_subtitle">Capture with the camera</string>
+
+    <!-- Tab 2 -->
+    <string name="converter_headline">Turn any drawing into a professional design</string>
+    <string name="converter_subheadline">Draw anything — our AI will elevate it</string>
+    <string name="converter_tip_anything">Anything you draw will become a beautiful design</string>
+    <string name="converter_inspiration_title">Inspiration ideas</string>
+    <string name="converter_inspiration_refresh">Refresh ideas</string>
+
+    <!-- Styles -->
+    <string name="style_vector_clean">Clean Vector</string>
+    <string name="style_artistic">Artistic Illustration</string>
+    <string name="style_minimalist">Minimalist</string>
+    <string name="style_realistic">Realistic Render</string>
+    <string name="style_auto">Auto (Recommended)</string>
+
+    <!-- Flow screens -->
+    <string name="screen_preview">Preview</string>
+    <string name="screen_suggestions">AI Suggestions</string>
+    <string name="screen_processing">Processing</string>
+    <string name="screen_result">Result</string>
+    <string name="screen_template_gallery">Template Gallery</string>
+    <string name="preview_missing_input">No image selected</string>
+
+    <!-- Actions -->
+    <string name="action_back">Back</string>
+    <string name="action_continue">Continue</string>
+    <string name="action_save">Save</string>
+    <string name="action_share">Share</string>
+    <string name="action_edit_again">Edit Again</string>
+    <string name="action_try_again">Try Again</string>
+    <string name="action_close">Close</string>
+    <string name="action_cancel">Cancel</string>
+
+    <!-- Processing stages -->
+    <string name="stage_analyzing">Analyzing drawing…</string>
+    <string name="stage_extracting">Extracting elements…</string>
+    <string name="stage_applying">Applying style…</string>
+    <string name="stage_generating">Generating variations…</string>
+    <string name="stage_done">Done</string>
+    <string name="stage_edge_detecting">Detecting outlines…</string>
+    <string name="stage_upscaling">Upscaling to high resolution…</string>
+
+    <!-- Fallback / stub messages -->
+    <string name="ai_model_missing">AI model is not yet installed. A simple placeholder result will be shown.</string>
+    <string name="feature_coming_soon">This feature is under construction — coming soon</string>
+
+    <!-- Suggestions screen -->
+    <string name="suggestions_pick_skin_tone">Pick a skin tone</string>
+    <string name="suggestions_pick_fabric_tone">Pick a fabric tone</string>
+    <string name="suggestions_pick_style">Pick a style</string>
+    <string name="skin_tone_light">Light</string>
+    <string name="skin_tone_medium_light">Medium-Light</string>
+    <string name="skin_tone_medium">Medium</string>
+    <string name="skin_tone_medium_dark">Medium-Dark</string>
+    <string name="skin_tone_deep">Deep</string>
+    <string name="fabric_tone_white">White</string>
+    <string name="fabric_tone_beige">Beige</string>
+    <string name="fabric_tone_gold">Gold</string>
+    <string name="fabric_tone_navy">Navy</string>
+    <string name="fabric_tone_black">Black</string>
+    <string name="fabric_tone_burgundy">Burgundy</string>
+
+    <!-- Processing screen -->
+    <string name="processing_error_title">Processing failed</string>
+    <string name="processing_retry">Retry</string>
+
+    <!-- Template gallery -->
+    <string name="template_gallery_apply">Apply template</string>
+    <string name="template_gallery_empty">No templates available for this category yet</string>
+
+    <!-- Result -->
+    <string name="result_saved_toast">Saved to gallery</string>
+    <string name="result_save_failed">Could not save</string>
+    <string name="action_customize_color">Customize color</string>
+
+    <!-- Customize screen -->
+    <string name="customize_title">Customize color</string>
+    <string name="customize_presets_title">Quick palette</string>
+    <string name="customize_hex_label">Hex</string>
+    <string name="customize_hue">Hue</string>
+    <string name="customize_saturation">Saturation</string>
+    <string name="customize_lightness">Lightness</string>
+    <string name="customize_save">Save</string>
+    <string name="customize_recoloring">Recoloring…</string>
+    <string name="customize_tab_hsl">HSL</string>
+    <string name="customize_tab_rgb">RGB</string>
+    <string name="customize_red">Red</string>
+    <string name="customize_green">Green</string>
+    <string name="customize_blue">Blue</string>
+
+    <!-- Memory detail + add -->
+    <string name="memory_share_chooser">Share memory via</string>
+    <string name="memory_share_text">%1$s — %2$s</string>
+    <string name="add_memory_title_required">Please add a title first</string>
+    <string name="add_memory_saved">Memory saved</string>
+    <string name="add_memory_save_failed">Couldn\'t save memory</string>
+
+    <!-- Permissions -->
+    <string name="permission_camera_denied">Camera permission denied</string>
+
+    <!-- Canvas -->
+    <string name="canvas_title">Drawing Canvas</string>
+    <string name="canvas_brushes">Brushes</string>
+    <string name="canvas_layers">Layers</string>
+    <string name="canvas_colors">Colors</string>
+    <string name="canvas_undo">Undo</string>
+    <string name="canvas_redo">Redo</string>
+    <string name="canvas_clear">Clear</string>
+    <string name="canvas_done">Done</string>
+    <string name="canvas_size">Size</string>
+    <string name="canvas_opacity">Opacity</string>
+    <string name="canvas_hardness">Hardness</string>
+    <string name="canvas_spacing">Spacing</string>
+    <string name="canvas_scatter">Scatter</string>
+    <string name="canvas_jitter">Size Jitter</string>
+    <string name="canvas_flow">Flow</string>
+    <string name="canvas_layer_new">New Layer</string>
+    <string name="canvas_layer_delete">Delete Layer</string>
+    <string name="canvas_layer_duplicate">Duplicate Layer</string>
+    <string name="canvas_layer_merge">Merge Down</string>
+    <string name="canvas_blend">Blend Mode</string>
+    <string name="canvas_blend_normal">Normal</string>
+    <string name="canvas_blend_multiply">Multiply</string>
+    <string name="canvas_blend_overlay">Overlay</string>
+    <string name="canvas_blend_screen">Screen</string>
+    <string name="canvas_blend_soft_light">Soft Light</string>
+    <string name="canvas_symmetry">Symmetry</string>
+    <string name="canvas_symmetry_off">Off</string>
+    <string name="canvas_symmetry_v">Vertical</string>
+    <string name="canvas_symmetry_h">Horizontal</string>
+    <string name="canvas_symmetry_2fold">Radial 2-fold</string>
+    <string name="canvas_symmetry_4fold">Radial 4-fold</string>
+    <string name="canvas_symmetry_6fold">Radial 6-fold</string>
+    <string name="canvas_symmetry_8fold">Radial 8-fold</string>
+    <string name="canvas_shape_line">Line</string>
+    <string name="canvas_shape_rect">Rectangle</string>
+    <string name="canvas_shape_circle">Circle</string>
+    <string name="canvas_shape_polygon">Polygon</string>
+    <string name="canvas_shape_star">Star</string>
+    <string name="canvas_tool_brush">Brush</string>
+    <string name="canvas_tool_eraser">Eraser</string>
+    <string name="canvas_tool_fill">Fill</string>
+    <string name="canvas_tool_shape">Shape</string>
+    <string name="canvas_tool_select">Select</string>
+    <string name="canvas_tool_eyedropper">Eyedropper</string>
+    <string name="canvas_color_hsb">HSB</string>
+    <string name="canvas_color_rgb">RGB</string>
+    <string name="canvas_color_hex">Hex</string>
+    <string name="canvas_color_palette">Palette</string>
+    <string name="canvas_color_recents">Recent</string>
+    <string name="canvas_save_artwork">Save Artwork</string>
+    <string name="canvas_artwork_title_hint">Title for this artwork</string>
+    <string name="canvas_pick_template">Pick a Template</string>
+    <string name="canvas_ai_tips">AI Tips</string>
+
+    <!-- AI recommendations -->
+    <string name="recommendations_title">AI tips for your drawing</string>
+    <string name="recommendations_subtitle">Apply a quick polish — revert if you change your mind</string>
+    <string name="recommendations_empty">No suggestions right now — your drawing is beautiful as is</string>
+    <string name="recommendations_loading">Analyzing your drawing…</string>
+    <string name="recommendations_refresh">Refresh suggestions</string>
+    <string name="recommendations_apply_success">Applied</string>
+    <string name="recommendations_apply_failed">Could not apply</string>
+    <string name="recommendations_revert_success">Reverted</string>
+    <string name="recommendations_revert_failed">Could not revert</string>
+    <string name="recommendations_applying">Applying…</string>
+    <string name="action_apply">Apply</string>
+    <string name="action_revert">Revert</string>
+
+    <!-- Brush names -->
+    <string name="brush_pencil">Pencil</string>
+    <string name="brush_ink">Ink Pen</string>
+    <string name="brush_calligraphy">Calligraphy</string>
+    <string name="brush_marker">Marker</string>
+    <string name="brush_airbrush">Airbrush</string>
+    <string name="brush_watercolor">Watercolor</string>
+    <string name="brush_henna">Henna</string>
+    <string name="brush_embroidery">Embroidery</string>
+    <string name="brush_pattern">Pattern Stamp</string>
+    <string name="brush_charcoal">Charcoal</string>
+
+    <!-- Showcase (walls cinematic stage) -->
+    <string name="showcase_action">Show in Gallery</string>
+    <string name="showcase_pick_scene">Pick a Scene</string>
+    <string name="showcase_pick_frame">Pick a Frame</string>
+    <string name="showcase_pick_lighting">Pick Lighting</string>
+    <string name="showcase_cinematic">Cinematic Presentation</string>
+    <string name="showcase_export">Export</string>
+    <string name="showcase_scene_gallery">Art Gallery</string>
+    <string name="showcase_scene_living_room">Living Room</string>
+    <string name="showcase_scene_museum">Museum Hall</string>
+    <string name="showcase_scene_outdoor">Outdoor Wall</string>
+    <string name="showcase_scene_modern">Modern Hall</string>
+    <string name="showcase_scene_majlis">Sudanese Majlis</string>
+    <string name="showcase_frame_none">No Frame</string>
+    <string name="showcase_frame_gold">Gold Ornate</string>
+    <string name="showcase_frame_modern">Modern Black</string>
+    <string name="showcase_frame_arabic">Arabic Carved</string>
+    <string name="showcase_lighting_warm">Warm</string>
+    <string name="showcase_lighting_cool">Cool</string>
+    <string name="showcase_lighting_dramatic">Dramatic</string>
+    <string name="showcase_lighting_natural">Natural</string>
+    <string name="showcase_visitors_show">Show Visitors</string>
+    <string name="showcase_title_card">Title Card</string>
+
+    <!-- Home -->
+    <!-- Phase 25: brand name removed from share targets so the in-app
+         identity stays hidden in chat thread previews and email subject
+         lines. The launcher_label is already empty per Phase 1; this
+         closes the last user-visible "Mawaai" leak. -->
+    <string name="share_quote_subject">Quote</string>
+    <string name="share_quote_chooser">Share quote</string>
+
+    <!-- User-chrome (TopBar titles + Settings) -->
+    <string name="topbar_compose_letter">Compose Letter</string>
+    <string name="topbar_settings">Settings</string>
+    <string name="topbar_mood">Our Mood</string>
+    <string name="topbar_add_memory">New Memory</string>
+    <string name="topbar_letters">My Letters to You</string>
+    <string name="topbar_memories">Our Memories</string>
+    <string name="topbar_letter_detail">Read Letter</string>
+    <string name="settings_section_profile">Profile</string>
+    <string name="settings_section_notifications">Notifications</string>
+    <string name="settings_enable_notifications">Enable Notifications</string>
+    <string name="settings_section_privacy">Privacy</string>
+    <string name="settings_biometric_lock">Biometric Lock</string>
+    <string name="settings_partner_name">Partner Name</string>
+    <string name="settings_section_theme">Theme</string>
+    <string name="settings_theme_auto">Auto (time-based)</string>
+    <string name="settings_theme_morning">Morning</string>
+    <string name="settings_theme_night">Night</string>
+
+    <!-- Attribution required by ZenQuotes API ToS for any UI surface that
+         renders a quote sourced from their endpoints. Keep visible. -->
+    <string name="zenquotes_attribution">Inspirational quotes provided by ZenQuotes API</string>
+    <string name="aladhan_attribution">Hijri calendar provided by Aladhan API</string>
+
+    <!-- AI Scene Generator (Cloudflare Workers AI) -->
+    <string name="ai_scene_card_title">AI Romantic Scene</string>
+    <string name="ai_scene_card_subtitle">Describe a scene, see it come to life</string>
+    <string name="ai_scene_dialog_title">Generate a Romantic Scene</string>
+    <string name="ai_scene_prompt_hint">e.g. \"a moonlit garden with roses\"</string>
+    <string name="ai_scene_button_generate">Generate</string>
+    <string name="ai_scene_button_save">Save to gallery</string>
+    <string name="ai_scene_button_close">Close</string>
+    <string name="ai_scene_button_retry">Try again</string>
+    <string name="ai_scene_status_generating">Painting your scene…</string>
+    <string name="ai_scene_status_saved">Saved to gallery</string>
+    <string name="ai_scene_status_save_failed">Could not save to gallery</string>
+    <string name="ai_scene_error_empty_prompt">Please type a description first.</string>
+    <string name="ai_scene_error_generation_failed">Could not generate the image. Check your connection and try again.</string>
+
+    <!-- Template apply pipeline (Phase 25 — multi-step compose-refine) -->
+    <string name="template_apply_stage_compose">Compose</string>
+    <string name="template_apply_stage_refine">AI Refine</string>
+    <string name="template_apply_stage_polish">Polish</string>
+    <string name="template_apply_status_idle">Ready</string>
+    <string name="template_apply_status_compose">Step 1 of 3 — placing your design on the template…</string>
+    <string name="template_apply_status_refine">Step 2 of 3 — AI is integrating the design naturally…</string>
+    <string name="template_apply_status_polish">Step 3 of 3 — final polish…</string>
+    <string name="template_apply_status_done">Done</string>
+</resources>

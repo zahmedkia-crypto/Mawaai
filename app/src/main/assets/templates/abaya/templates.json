@@ -1,0 +1,11 @@
+{
+  "_doc": "Per-template overrides. Each entry's id must match the filename without extension (e.g. 'modern_1' for 'modern_1.jpg'). quad: [[x0,y0],[x1,y1],[x2,y2],[x3,y3]] in normalized [0..1] coordinates of the base bitmap, ordered top-left, top-right, bottom-right, bottom-left of the design placement region. Templates not listed here use the category defaults from TemplateCompositor (abaya: OVERLAY @ 0.75, 22% inset). blend: NORMAL | MULTIPLY | OVERLAY | SCREEN | FABRIC_REALISTIC. alpha: overlay strength in [0..1].",
+  "_authoring_workflow": "1) Open the template JPG in any image editor. 2) Identify the four corners of the chest/torso area where the design should land. 3) Divide each (x,y) by the image's width/height to normalize to [0..1]. 4) Append an entry below. 5) Run on-device and verify the design lands inside the fabric region with no clipping.",
+  "_example_pending_authoring": {
+    "id": "modern_1",
+    "quad": [[0.30, 0.28], [0.70, 0.28], [0.72, 0.66], [0.28, 0.66]],
+    "blend": "FABRIC_REALISTIC",
+    "alpha": 0.80
+  },
+  "templates": []
+}

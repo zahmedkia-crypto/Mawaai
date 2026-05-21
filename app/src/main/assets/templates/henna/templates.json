@@ -1,0 +1,23 @@
+{
+  "_doc": "Optional per-template overrides. Each entry's id must match the filename without extension. quad: [[x0,y0],[x1,y1],[x2,y2],[x3,y3]] in normalized [0..1] coordinates of the base bitmap, ordered top-left, top-right, bottom-right, bottom-left. Templates not listed here use the category defaults (henna: MULTIPLY @ 0.85, 18% inset).",
+  "templates": [
+    {
+      "id": "palm_light_1",
+      "quad": [[0.18, 0.22], [0.82, 0.20], [0.86, 0.92], [0.14, 0.94]],
+      "blend": "MULTIPLY",
+      "alpha": 0.82
+    },
+    {
+      "id": "palm_dark_1",
+      "quad": [[0.18, 0.22], [0.82, 0.20], [0.86, 0.92], [0.14, 0.94]],
+      "blend": "MULTIPLY",
+      "alpha": 0.78
+    },
+    {
+      "id": "palm_medium_2",
+      "quad": [[0.18, 0.22], [0.82, 0.20], [0.86, 0.92], [0.14, 0.94]],
+      "blend": "MULTIPLY",
+      "alpha": 0.8
+    }
+  ]
+}

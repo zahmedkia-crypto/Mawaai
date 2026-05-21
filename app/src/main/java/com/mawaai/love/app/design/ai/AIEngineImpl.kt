@@ -1,0 +1,621 @@
+package com.mawaai.love.app.design.ai
+
+import android.graphics.Bitmap
+import android.util.Log
+import com.google.mlkit.vision.segmentation.subject.SubjectSegmentation
+import com.google.mlkit.vision.segmentation.subject.SubjectSegmenterOptions
+import com.mawaai.love.app.core.opencv.OpenCVBootstrap
+import com.mawaai.love.app.design.ai.cloudflare.CloudflareWorkersAiClient
+import com.mawaai.love.app.design.ai.gemini.GeminiVisionClient
+import com.mawaai.love.app.design.ai.huggingface.HuggingFaceClient
+import com.mawaai.love.app.design.ai.pipelines.CnParams
+import com.mawaai.love.app.design.ai.pipelines.compositeRefinePromptFor
+import com.mawaai.love.app.design.ai.pipelines.controlNetParamsFor
+import com.mawaai.love.app.design.ai.pipelines.createSolidBitmap
+import com.mawaai.love.app.design.ai.pipelines.downsizeIfNeeded
+import com.mawaai.love.app.design.ai.pipelines.negativePromptFor
+import com.mawaai.love.app.design.ai.pipelines.recycleIntermediates
+import com.mawaai.love.app.design.ai.pipelines.safeRecycle
+import com.mawaai.love.app.design.ai.pipelines.specializedNegativePromptFor
+import com.mawaai.love.app.design.ai.pipelines.specializedPromptFor
+import com.mawaai.love.app.design.ai.pipelines.stylePromptFor
+import com.mawaai.love.app.design.ai.processors.BlendMode
+import com.mawaai.love.app.design.ai.processors.BlendModeProcessor
+import com.mawaai.love.app.design.ai.processors.EdgeDetectionProcessor
+import com.mawaai.love.app.design.ai.processors.SegmentationProcessor
+import com.mawaai.love.app.design.ai.processors.StyleTransferProcessor
+import com.mawaai.love.app.design.ai.processors.SuperResolutionProcessor
+import com.mawaai.love.app.design.ai.removebg.RemoveBgClient
+import com.mawaai.love.app.design.domain.model.FabricTone
+import com.mawaai.love.app.design.domain.model.SkinTone
+import javax.inject.Inject
+import javax.inject.Singleton
+
+/**
+ * Phase 5 routing model: every pipeline tries the cloud (HuggingFace)
+ * path first when [HuggingFaceClient.isConfigured] is true, falls back
+ * to the on-device path on any cloud failure, and runs every successful
+ * output through [OfflineEnhancer] for the final polish.
+ *
+ * Design contract: a cloud call returning null is **always** treated as
+ * "not configured / error / fallback to local" — never as a hard error.
+ * The user shouldn't see a 503 toast or know the call went out at all;
+ * they should just see slightly slower / lower-quality output when the
+ * network is unreachable.
+ *
+ * Heavy cloud / TFLite clients are injected as [dagger.Lazy] so the
+ * AI graph isn't fully instantiated at app start; each provider is
+ * created the first time its code path is taken.
+ */
+@Singleton
+class AIEngineImpl @Inject constructor(
+    private val segmentation: SegmentationProcessor,
+    private val edges: EdgeDetectionProcessor,
+    private val styleTransfer: dagger.Lazy<StyleTransferProcessor>,
+    private val superResolution: dagger.Lazy<SuperResolutionProcessor>,
+    private val blend: BlendModeProcessor,
+    private val huggingFace: dagger.Lazy<HuggingFaceClient>,
+    private val offlineEnhancer: OfflineEnhancer,
+    private val autoStylePicker: AutoStylePicker,
+    private val visionClient: GeminiVisionClient,
+    // Phase 23 — extra cloud providers wired into the DI graph.
+    //
+    // [removeBg]: PREMIUM emergency fallback for the segmentation step.
+    // Used in `processSpecialized` only when HuggingFace RMBG returns
+    // null, so the 50/month free quota stays intact during normal use.
+    //
+    // [cloudflare]: pure text-to-image (SDXL / FLUX / Lightning).
+    // Currently NOT plumbed into `processSpecialized` / `processConverter`
+    // because CF doesn't accept the user's sketch as a conditioning
+    // input — using it as a converter fallback would silently lose
+    // sketch fidelity. The client lives here so future UIs that DO
+    // need pure text-to-image (e.g. a "describe a romantic scene"
+    // generator on the romantic side) can call it directly via
+    // [generateRomanticImage].
+    private val removeBg: dagger.Lazy<RemoveBgClient>,
+    private val cloudflare: dagger.Lazy<CloudflareWorkersAiClient>
+) : AIEngine {
+
+    @Volatile private var initialized = false
+    @Volatile private var openCvOk = false
+    @Volatile private var segmenterOk = false
+
+    override val openCvAvailable: Boolean get() {
+        ensureInit()
+        return openCvOk
+    }
+
+    override val subjectSegmenterAvailable: Boolean get() {
+        ensureInit()
+        return segmenterOk
+    }
+
+    override val cloudTextToImageAvailable: Boolean get() = cloudflare.get().isConfigured
+
+    override val cloudRefinementAvailable: Boolean get() = cloudflare.get().isConfigured
+
+    override fun isReady(): Boolean {
+        ensureInit()
+        return openCvOk && segmenterOk
+    }
+
+    override suspend fun generateRomanticImage(prompt: String): Bitmap? {
+        val cf = cloudflare.get()
+        if (!cf.isConfigured) return null
+        // SDXL Lightning is the default — fastest CF model that still
+        // produces gallery-quality output. Callers that want maximum
+        // fidelity over speed can build on this method or call the
+        // [CloudflareWorkersAiClient] directly.
+        return tryOrNull("CF generateRomanticImage failed") {
+            cf.generateImage(
+                prompt = prompt,
+                model = CloudflareWorkersAiClient.Model.SDXL_LIGHTNING
+            )
+        }
+    }
+
+    override suspend fun refineComposite(
+        composite: Bitmap,
+        categoryId: String,
+        subTypeId: String?
+    ): Bitmap? {
+        val cf = cloudflare.get()
+        if (!cf.isConfigured) return null
+
+        val prompt = compositeRefinePromptFor(categoryId, subTypeId)
+        Log.i(
+            TAG,
+            "Refining composite category=$categoryId sub=$subTypeId via CF img2img"
+        )
+        return tryOrNull("CF imageToImage refine failed") {
+            cf.imageToImage(
+                input = composite,
+                prompt = prompt
+            )
+        }
+    }
+
+    @Synchronized
+    private fun ensureInit() {
+        if (initialized) return
+        // OpenCV is now loaded once, eagerly, from MawaaiApp.onCreate via
+        // OpenCVBootstrap. We just read the cached availability flag so the
+        // public openCvAvailable getter stays accurate.
+        openCvOk = OpenCVBootstrap.ensureLoaded()
+
+        segmenterOk = runCatching {
+            val options = SubjectSegmenterOptions.Builder()
+                .enableForegroundConfidenceMask()
+                .enableForegroundBitmap()
+                .build()
+            SubjectSegmentation.getClient(options)
+        }.onFailure { Log.e(TAG, "Subject segmenter init failed", it) }.isSuccess
+        Log.i(TAG, "SubjectSegmentation client ready = $segmenterOk")
+
+        initialized = true
+    }
+
+    override suspend fun processSpecialized(
+        input: Bitmap,
+        categoryId: String,
+        subTypeId: String?,
+        styleId: String?,
+        skinTone: SkinTone?,
+        fabricTone: FabricTone?,
+        onProgress: (ProcessingStage) -> Unit
+    ): Bitmap {
+        ensureInit()
+        onProgress(ProcessingStage.Init)
+        val downsized = downsizeIfNeeded(input, MAX_INPUT_DIMENSION)
+
+        onProgress(ProcessingStage.Segmenting)
+        // Three-tier segmentation chain (Phase 23):
+        //   1. HuggingFace `briaai/RMBG-1.4` — cheap (no quota), good
+        //      cuts on cluttered backgrounds, primary cloud path.
+        //   2. remove.bg — premium fallback when HF fails. Burns
+        //      monthly quota (50/month free) so we ONLY enter this
+        //      branch when HF returned null (network / throttle /
+        //      decode error) — never as the default.
+        //   3. ML Kit Subject Segmentation — on-device, free, fast.
+        //      Last-resort path that doesn't need the network.
+        val cloudCut = run {
+            val hf = huggingFace.get()
+            val hfCut = if (hf.isConfigured) {
+                tryOrNull("HF removeBackground failed") { hf.removeBackground(downsized) }
+            } else null
+            hfCut ?: run {
+                val rb = removeBg.get()
+                if (rb.isConfigured) {
+                    Log.i(TAG, "HF segmentation unavailable; falling back to remove.bg")
+                    tryOrNull("Premium removeBackground (fallback) failed") { rb.removeBackground(downsized) }
+                } else null
+            }
+        }
+        val segmented = cloudCut ?: safeSegment(downsized)
+        val foreground = segmented ?: downsized
+
+        // Snapshot the foreground confidence alpha BEFORE the downstream
+        // TFLite processors strip it (style transfer + super-res return
+        // fully-opaque bitmaps). Closes AI7 (see audit-fix entry).
+        val foregroundMask: Bitmap? = segmented?.let {
+            tryOrNull("extractAlpha failed") { it.extractAlpha() }
+        }
+
+        onProgress(ProcessingStage.EdgeDetecting)
+        val edged = if (openCvOk) {
+            tryOrDefault("Edge detection failed", foreground) { edges.cannyEdges(foreground) }
+        } else foreground
+
+        onProgress(ProcessingStage.Stylizing)
+        // Phase 24 — REAL design generation, not just a TFLite filter:
+        //   1. Cloud first: ControlNet conditioned on the user's Canny
+        //      edges + a category-aware prompt. The output is a
+        //      photorealistic rendering of the design (henna ink on
+        //      skin, embroidered fabric, carved wall ornament, ...)
+        //      that *preserves the sketch's structure* but replaces
+        //      the medium. This is the visible quality jump the user
+        //      asked for: "convert my drawings into REAL designs".
+        //   2. On-device fallback: when the cloud path is unavailable
+        //      (no key, network, throttle), we keep the previous TFLite
+        //      `styleTransfer.stylize(...)` behaviour so the pipeline
+        //      still produces something usable offline.
+        val cloudGenerated = runSpecializedCloud(
+            edges = edged,
+            categoryId = categoryId,
+            subTypeId = subTypeId,
+            styleId = styleId
+        )
+        val stylized = cloudGenerated ?: tryOrDefaultBrief("Style transfer skipped", edged) {
+            styleTransfer.get().stylize(edged, styleId ?: "auto")
+        }
+
+        val tinted = if (foregroundMask != null) {
+            applyTone(stylized, categoryId, skinTone, fabricTone, foregroundMask)
+        } else {
+            stylized
+        }
+
+        onProgress(ProcessingStage.Upscaling)
+        val upscaled = tryOrDefaultBrief("Upscale skipped", tinted) {
+            superResolution.get().upscale(tinted)
+        }
+
+        // Phase 5: every pipeline output is polished — unsharp mask +
+        // saturation lift. Phase 10: the polish is now category-aware so
+        // henna gets sharper linework, abaya/thob get richer fabric, and
+        // walls get a light touch. Falls through to the input bitmap if
+        // OpenCV is unavailable (graceful no-op).
+        val polished = tryOrDefault("OfflineEnhancer skipped", upscaled) {
+            offlineEnhancer.enhance(upscaled, categoryId)
+        }
+
+        recycleIntermediates(
+            candidates = listOfNotNull(
+                downsized, cloudCut, foreground, foregroundMask,
+                edged, stylized, tinted, upscaled
+            ),
+            keep = listOf(input, polished)
+        )
+
+        onProgress(ProcessingStage.Done)
+        return polished
+    }
+
+    override suspend fun processConverter(
+        input: Bitmap,
+        styleId: String?,
+        onProgress: (ProcessingStage) -> Unit
+    ): Bitmap {
+        ensureInit()
+        onProgress(ProcessingStage.Init)
+        val downsized = downsizeIfNeeded(input, MAX_INPUT_DIMENSION)
+
+        // Cloud-first converter: ControlNet conditioned on a Canny-edge
+        // pass over the user's sketch produces a real generated image.
+        // When the cloud call succeeds we skip style transfer entirely —
+        // the on-device style transfer was always a stand-in for "real"
+        // generation. Falls through to the local pipeline on failure.
+        if (huggingFace.get().isConfigured) {
+            val cloud = runConverterCloud(downsized, styleId, onProgress)
+            if (cloud != null) {
+                val polished = tryOrDefault("OfflineEnhancer skipped", cloud) {
+                    offlineEnhancer.enhance(cloud)
+                }
+                recycleIntermediates(
+                    candidates = listOf(downsized, cloud),
+                    keep = listOf(input, polished)
+                )
+                onProgress(ProcessingStage.Done)
+                return polished
+            }
+        }
+
+        // ----- on-device fallback (unchanged from Phase 4) ---------------
+        onProgress(ProcessingStage.Segmenting)
+        val foreground = safeSegment(downsized) ?: downsized
+
+        onProgress(ProcessingStage.Stylizing)
+        val stylized = runCatching { styleTransfer.get().stylize(foreground, styleId ?: "auto") }
+            .onFailure { Log.w(TAG, "Style transfer skipped: ${it.message}") }
+            .getOrElse {
+                if (openCvOk) runCatching { edges.cannyEdges(foreground) }.getOrDefault(foreground)
+                else foreground
+            }
+
+        onProgress(ProcessingStage.Upscaling)
+        val upscaled = tryOrDefaultBrief("Upscale skipped", stylized) {
+            superResolution.get().upscale(stylized)
+        }
+
+        val polished = tryOrDefault("OfflineEnhancer skipped", upscaled) {
+            offlineEnhancer.enhance(upscaled)
+        }
+
+        recycleIntermediates(
+            candidates = listOf(downsized, foreground, stylized, upscaled),
+            keep = listOf(input, polished)
+        )
+
+        onProgress(ProcessingStage.Done)
+        return polished
+    }
+
+    /**
+     * Cloud-only converter pipeline. Returns null on any failure so the
+     * caller can fall back to the on-device path. Reports
+     * [ProcessingStage.EdgeDetecting] + [ProcessingStage.Stylizing]
+     * progress so the existing UI hooks keep working.
+     *
+     * Phase 11 adds two "thinking" steps in front of the render:
+     *  1. **AutoStylePicker** — when the caller passes `null` or
+     *     `"auto"`, classify the sketch into one of the four concrete
+     *     styles instead of falling through to the generic else prompt.
+     *     Local, deterministic, < 30 ms.
+     *  2. **Vision-tailored prompt** — when Gemini is configured, ask
+     *     Vision to write a custom ControlNet prompt that captures
+     *     **this specific sketch** in the chosen style. Falls back to
+     *     the static [stylePromptFor] when Vision is unavailable or
+     *     returns nothing usable.
+     */
+    private suspend fun runConverterCloud(
+        downsized: Bitmap,
+        styleId: String?,
+        onProgress: (ProcessingStage) -> Unit
+    ): Bitmap? {
+        // Step 0: pick the actual style. The user-facing "auto" option
+        // (the FIRST and recommended option in the styles list) routed
+        // every render through the generic fallback before Phase 11.
+        val resolvedStyle = resolveStyle(styleId, downsized)
+
+        // ControlNet wants Canny edges as the conditioning input. When
+        // OpenCV isn't available we can still send the original image —
+        // most ControlNet endpoints handle raw photos by extracting
+        // edges server-side, but the result quality is lower.
+        onProgress(ProcessingStage.EdgeDetecting)
+        val edgesForCloud = if (openCvOk) {
+            tryOrDefault("Cloud edge prep failed", downsized) { edges.cannyEdges(downsized) }
+        } else downsized
+
+        onProgress(ProcessingStage.Stylizing)
+        // Try Vision-tailored prompt first; fall back to static prompt
+        // on any failure (no Gemini key, network, parse error). Tailored
+        // path is gated on `isConfigured` to skip the network round-trip
+        // entirely when the key is absent.
+        val tailored = if (visionClient.isConfigured) {
+            tryOrNull("Tailored prompt fetch threw") {
+                visionClient.tailoredControlNetPrompt(downsized, resolvedStyle)
+            }
+        } else null
+        val prompt = tailored ?: stylePromptFor(resolvedStyle)
+        val negativePrompt = negativePromptFor(resolvedStyle)
+        val baseParams = controlNetParamsFor(resolvedStyle)
+
+        val rendered = renderWithGradeRetry(
+            edges = edgesForCloud,
+            sketch = downsized,
+            prompt = prompt,
+            negativePrompt = negativePrompt,
+            baseParams = baseParams,
+            resolvedStyle = resolvedStyle
+        )
+
+        if (edgesForCloud !== downsized && rendered != null) edgesForCloud.safeRecycle()
+        return rendered
+    }
+
+    /**
+     * Phase-16 grade-and-retry wrapper around the ControlNet call.
+     *
+     * 1. Render once with [baseParams].
+     * 2. If Gemini Vision is configured, ask it to grade the output
+     *    1-5 against the original sketch. Log the grade.
+     * 3. If the grade is ≤ [GRADE_RETRY_THRESHOLD], render ONE more
+     *    time with stronger params:
+     *    - `steps × RETRY_STEPS_FACTOR` (capped at [RETRY_STEPS_MAX])
+     *    - `guidance + RETRY_GUIDANCE_BUMP`
+     *    Use the retry output regardless of its own grade — a second
+     *    retry would compound latency without diminishing-returns
+     *    upside.
+     * 4. When Vision is not configured, skip grading entirely — the
+     *    pre-Phase-16 single-render behaviour is preserved.
+     *
+     * Returns the chosen bitmap (initial or retry) or null on render
+     * failure. The non-chosen bitmap (when a retry happens) is recycled
+     * here so the caller doesn't have to track it.
+     */
+    private suspend fun renderWithGradeRetry(
+        edges: Bitmap,
+        sketch: Bitmap,
+        prompt: String,
+        negativePrompt: String,
+        baseParams: CnParams,
+        resolvedStyle: String
+    ): Bitmap? {
+        val hf = huggingFace.get()
+        Log.i(
+            TAG,
+            "ControlNet (attempt 1) style=$resolvedStyle steps=${baseParams.steps} g=${baseParams.guidance}"
+        )
+        val first = tryOrNull("ControlNet attempt 1 failed") {
+            hf.controlNetFromSketch(
+                edges = edges,
+                prompt = prompt,
+                negativePrompt = negativePrompt,
+                inferenceSteps = baseParams.steps,
+                guidanceScale = baseParams.guidance
+            )
+        } ?: return null
+
+        if (!visionClient.isConfigured) return first
+
+        val grade = tryOrNull("Vision gradeOutput threw") {
+            visionClient.gradeOutput(sketch, first, resolvedStyle)
+        }
+        Log.i(TAG, "Vision grade attempt 1 = $grade")
+        if (grade == null || grade > GRADE_RETRY_THRESHOLD) return first
+
+        // Low-grade path: retry once with stronger sampling. The cache
+        // key in `HuggingFaceClient` includes steps + guidance so this
+        // is guaranteed to miss the cache and produce a fresh render.
+        val retrySteps = (baseParams.steps * RETRY_STEPS_FACTOR).toInt().coerceAtMost(RETRY_STEPS_MAX)
+        val retryGuidance = baseParams.guidance + RETRY_GUIDANCE_BUMP
+        Log.i(
+            TAG,
+            "ControlNet (attempt 2 retry, grade=$grade was low) style=$resolvedStyle " +
+                "steps=$retrySteps g=$retryGuidance"
+        )
+        val second = tryOrNull("ControlNet attempt 2 failed") {
+            hf.controlNetFromSketch(
+                edges = edges,
+                prompt = prompt,
+                negativePrompt = negativePrompt,
+                inferenceSteps = retrySteps,
+                guidanceScale = retryGuidance
+            )
+        }
+        if (second == null) return first
+        // We're keeping the retry; recycle the first attempt so we
+        // don't leak the first bitmap.
+        first.safeRecycle()
+        return second
+    }
+
+    /**
+     * Resolves the user-supplied [styleId] to a concrete catalog style.
+     *
+     * - Named styles (`vector_clean` / `artistic` / `minimalist` /
+     *   `realistic`) pass straight through.
+     * - `"auto"` and null route through a two-tier picker:
+     *   - **Cloud-first**: when Gemini Vision is configured, ask the
+     *     model to classify the sketch semantically. Vision understands
+     *     "this is a flower" / "this is a portrait" — the local picker
+     *     can't.
+     *   - **Local fallback**: `AutoStylePicker.pick(sketch)` runs when
+     *     Vision is unavailable or returns null. ~30 ms,
+     *     deterministic.
+     * - If both return "auto" (degenerate sketch), the AIEngine keeps
+     *   the safe generic prompt — never fabricates a concrete style.
+     */
+    private suspend fun resolveStyle(styleId: String?, sketch: Bitmap): String {
+        val normalized = styleId?.takeIf { it.isNotBlank() } ?: AutoStylePicker.AUTO
+        if (normalized != AutoStylePicker.AUTO) return normalized
+
+        if (visionClient.isConfigured) {
+            val cloud = tryOrNull("Vision classifyStyle threw") { visionClient.classifyStyle(sketch) }
+            if (cloud != null) {
+                Log.i(TAG, "AutoStyle picked by Vision = $cloud")
+                return cloud
+            }
+        }
+
+        val local = autoStylePicker.pick(sketch)
+        Log.i(TAG, "AutoStyle picked by local heuristic = $local")
+        return local
+    }
+
+    /**
+     * Specialized-flow cloud renderer. Same shape as [runConverterCloud]
+     * but uses [specializedPromptFor] (category + subType + style) and
+     * returns only the design pattern — the surrounding pipeline is
+     * still responsible for tone application, super-resolution, polish,
+     * and the per-template warp + blend.
+     *
+     * Returns null when the cloud path is unavailable so the caller
+     * falls back to the existing on-device TFLite style-transfer path.
+     */
+    private suspend fun runSpecializedCloud(
+        edges: Bitmap,
+        categoryId: String,
+        subTypeId: String?,
+        styleId: String?
+    ): Bitmap? {
+        val hf = huggingFace.get()
+        if (!hf.isConfigured) return null
+
+        val prompt = specializedPromptFor(categoryId, subTypeId, styleId)
+        val negativePrompt = specializedNegativePromptFor(categoryId)
+        // Reuse the converter's per-style sampling parameters — the
+        // material descriptors in [specializedPromptFor] benefit from
+        // the same "more steps for realistic" trade-off.
+        val params = controlNetParamsFor(styleId)
+
+        Log.i(
+            TAG,
+            "Specialized ControlNet category=$categoryId sub=$subTypeId style=$styleId " +
+                "steps=${params.steps} g=${params.guidance}"
+        )
+        return tryOrNull("Specialized ControlNet failed") {
+            hf.controlNetFromSketch(
+                edges = edges,
+                prompt = prompt,
+                negativePrompt = negativePrompt,
+                inferenceSteps = params.steps,
+                guidanceScale = params.guidance
+            )
+        }
+    }
+
+    private suspend fun safeSegment(input: Bitmap): Bitmap? =
+        if (segmenterOk) tryOrNull("Segmentation failed") { segmentation.extractForeground(input) }
+        else null
+
+    private suspend fun applyTone(
+        bitmap: Bitmap,
+        categoryId: String,
+        skinTone: SkinTone?,
+        fabricTone: FabricTone?,
+        mask: Bitmap?
+    ): Bitmap {
+        val argb = when (categoryId) {
+            "henna" -> skinTone?.argb
+            "abaya", "thob_sudani" -> fabricTone?.argb
+            else -> null
+        } ?: return bitmap
+        if (!openCvOk) return bitmap
+        val solid = createSolidBitmap(bitmap.width, bitmap.height, argb)
+        return tryOrDefault("Tone blend skipped", bitmap) {
+            blend.blend(bitmap, solid, BlendMode.MULTIPLY, overlayAlpha = 0.35, mask = mask)
+        }.also { if (solid !== it) solid.safeRecycle() }
+    }
+
+    /**
+     * Run [block], swallow any exception, log a warning with the full
+     * stack trace, and return [fallback]. Used pervasively across the
+     * AI pipeline where a single processor failure should NOT abort the
+     * whole render — every stage either succeeds or is skipped, and the
+     * pipeline composes downstream stages on whatever bitmap survived.
+     *
+     * `inline` lets the lambda call suspend functions when the helper is
+     * invoked from a suspend context (the entire pipeline is suspend).
+     * Eager [fallback] is fine for our call sites: every fallback is an
+     * already-computed bitmap from the previous stage, never a heavy
+     * recomputation.
+     */
+    private inline fun <T> tryOrDefault(message: String, fallback: T, block: () -> T): T =
+        runCatching(block).onFailure { Log.w(TAG, message, it) }.getOrDefault(fallback)
+
+    /**
+     * Sibling of [tryOrDefault] for the cloud-call paths that report
+     * "no result" via null. The AIEngine treats null as "fall back to
+     * the on-device path" — see the class docstring.
+     */
+    private inline fun <T : Any> tryOrNull(message: String, block: () -> T?): T? =
+        runCatching(block).onFailure { Log.w(TAG, message, it) }.getOrNull()
+
+    /**
+     * Variant of [tryOrDefault] that logs `"<message>: <throwable.message>"`
+     * without the full stack trace. Used for high-frequency "expected
+     * skip" paths (TFLite-not-loaded → style transfer / upscale) where
+     * the full stack would spam logcat on every render — the short
+     * message is enough to diagnose and the throwable kind is implied
+     * by the call site.
+     */
+    private inline fun <T> tryOrDefaultBrief(message: String, fallback: T, block: () -> T): T =
+        runCatching(block)
+            .onFailure { Log.w(TAG, "$message: ${it.message}") }
+            .getOrDefault(fallback)
+
+    companion object {
+        private const val TAG = "AIEngine"
+        private const val MAX_INPUT_DIMENSION = 1024
+
+        // Phase 16 — grade-and-retry tuning.
+        // GRADE_RETRY_THRESHOLD == 1: retry only on the model's lowest
+        // rating (severe artefacts / unrecognisable output). Raising to
+        // 2 would retry on the bottom 40% of renders and roughly double
+        // the average latency. Keep conservative.
+        // RETRY_STEPS_FACTOR == 1.33: ~33% more diffusion steps on the
+        // retry pass. Combined with the guidance bump, this gives the
+        // sampler more headroom to lock onto details it missed.
+        // RETRY_STEPS_MAX == 60: hard cap so the realistic preset
+        // (40 steps default → 53 on retry) doesn't accidentally jump
+        // to a value the HF free tier rejects.
+        // RETRY_GUIDANCE_BUMP == 1.5: pushes the sampler harder toward
+        // the prompt. Empirically lifts identifiable subjects out of
+        // the abstract-noise failure mode.
+        private const val GRADE_RETRY_THRESHOLD = 1
+        private const val RETRY_STEPS_FACTOR = 1.33
+        private const val RETRY_STEPS_MAX = 60
+        private const val RETRY_GUIDANCE_BUMP = 1.5
+    }
+}
