@@ -19,7 +19,7 @@
         Night` colour (same value the splash screen uses) so the seam from
         splash → activity → Compose is invisible.
     -->
-    <style name="Theme.Mawaai" parent="Theme.Material.Light.NoActionBar">
+    <style name="Theme.Mawaai" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">#FF0A0510</item>
         <item name="android:colorBackground">#FF0A0510</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
