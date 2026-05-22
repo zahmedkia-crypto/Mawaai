@@ -1,18 +1,474 @@
 {
   "_doc": "Per-template overrides. Each entry's id must match the filename without extension (e.g. 'modern_1' for 'modern_1.jpg'). quad: [[x0,y0],[x1,y1],[x2,y2],[x3,y3]] in normalized [0..1] coordinates of the base bitmap, ordered top-left, top-right, bottom-right, bottom-left of the design placement region. Templates not listed here use the category defaults from TemplateCompositor (abaya: OVERLAY @ 0.75, 22% inset). blend: NORMAL | MULTIPLY | OVERLAY | SCREEN | FABRIC_REALISTIC. alpha: overlay strength in [0..1].",
   "_authoring_workflow": "1) Open the template JPG in any image editor. 2) Identify the four corners of the chest/torso area where the design should land. 3) Divide each (x,y) by the image's width/height to normalize to [0..1]. 4) Append an entry below. 5) Run on-device and verify the design lands inside the fabric region with no clipping.",
-  "_example_pending_authoring": {
-    "id": "modern_1",
-    "quad": [[0.30, 0.28], [0.70, 0.28], [0.72, 0.66], [0.28, 0.66]],
-    "blend": "FABRIC_REALISTIC",
-    "alpha": 0.80
+  "_authoring_status_legend": {
+    "default_estimate": "Category-default quad; MUST be refined per-template on-device before release.",
+    "authored": "Manually authored from the actual template image; verified visually.",
+    "masked": "Authored + has matching <id>.mask.png for realistic fabric integration."
+  },
+  "_category_defaults": {
+    "beaded": "Full front panel, FABRIC_REALISTIC @ 0.85",
+    "classic": "Center body, FABRIC_REALISTIC @ 0.78",
+    "embroidered": "Chest + hem band, FABRIC_REALISTIC @ 0.86",
+    "kaftan": "Chest + wide sleeve area, FABRIC_REALISTIC @ 0.80",
+    "modern": "Slim chest panel, FABRIC_REALISTIC @ 0.80"
   },
   "templates": [
     {
-      "id": "modern_1",
-      "quad": [[0.30, 0.28], [0.70, 0.28], [0.72, 0.66], [0.28, 0.66]],
+      "id": "beaded_1",
+      "quad": [
+        [
+          0.25,
+          0.2
+        ],
+        [
+          0.75,
+          0.2
+        ],
+        [
+          0.78,
+          0.78
+        ],
+        [
+          0.22,
+          0.78
+        ]
+      ],
       "blend": "FABRIC_REALISTIC",
-      "alpha": 0.80
+      "alpha": 0.85,
+      "authoring_status": "default_estimate"
+    },
+    {
+      "id": "beaded_2",
+      "quad": [
+        [
+          0.25,
+          0.2
+        ],
+        [
+          0.75,
+          0.2
+        ],
+        [
+          0.78,
+          0.78
+        ],
+        [
+          0.22,
+          0.78
+        ]
+      ],
+      "blend": "FABRIC_REALISTIC",
+      "alpha": 0.85,
+      "authoring_status": "default_estimate"
+    },
+    {
+      "id": "beaded_3",
+      "quad": [
+        [
+          0.25,
+          0.2
+        ],
+        [
+          0.75,
+          0.2
+        ],
+        [
+          0.78,
+          0.78
+        ],
+        [
+          0.22,
+          0.78
+        ]
+      ],
+      "blend": "FABRIC_REALISTIC",
+      "alpha": 0.85,
+      "authoring_status": "default_estimate"
+    },
+    {
+      "id": "beaded_4",
+      "quad": [
+        [
+          0.25,
+          0.2
+        ],
+        [
+          0.75,
+          0.2
+        ],
+        [
+          0.78,
+          0.78
+        ],
+        [
+          0.22,
+          0.78
+        ]
+      ],
+      "blend": "FABRIC_REALISTIC",
+      "alpha": 0.85,
+      "authoring_status": "default_estimate"
+    },
+    {
+      "id": "classic_1",
+      "quad": [
+        [
+          0.28,
+          0.32
+        ],
+        [
+          0.72,
+          0.32
+        ],
+        [
+          0.74,
+          0.74
+        ],
+        [
+          0.26,
+          0.74
+        ]
+      ],
+      "blend": "FABRIC_REALISTIC",
+      "alpha": 0.78,
+      "authoring_status": "default_estimate"
+    },
+    {
+      "id": "classic_2",
+      "quad": [
+        [
+          0.28,
+          0.32
+        ],
+        [
+          0.72,
+          0.32
+        ],
+        [
+          0.74,
+          0.74
+        ],
+        [
+          0.26,
+          0.74
+        ]
+      ],
+      "blend": "FABRIC_REALISTIC",
+      "alpha": 0.78,
+      "authoring_status": "default_estimate"
+    },
+    {
+      "id": "classic_3",
+      "quad": [
+        [
+          0.28,
+          0.32
+        ],
+        [
+          0.72,
+          0.32
+        ],
+        [
+          0.74,
+          0.74
+        ],
+        [
+          0.26,
+          0.74
+        ]
+      ],
+      "blend": "FABRIC_REALISTIC",
+      "alpha": 0.78,
+      "authoring_status": "default_estimate"
+    },
+    {
+      "id": "embroidered_1",
+      "quad": [
+        [
+          0.22,
+          0.22
+        ],
+        [
+          0.78,
+          0.22
+        ],
+        [
+          0.8,
+          0.82
+        ],
+        [
+          0.2,
+          0.82
+        ]
+      ],
+      "blend": "FABRIC_REALISTIC",
+      "alpha": 0.86,
+      "authoring_status": "default_estimate"
+    },
+    {
+      "id": "embroidered_2",
+      "quad": [
+        [
+          0.22,
+          0.22
+        ],
+        [
+          0.78,
+          0.22
+        ],
+        [
+          0.8,
+          0.82
+        ],
+        [
+          0.2,
+          0.82
+        ]
+      ],
+      "blend": "FABRIC_REALISTIC",
+      "alpha": 0.86,
+      "authoring_status": "default_estimate"
+    },
+    {
+      "id": "embroidered_3",
+      "quad": [
+        [
+          0.22,
+          0.22
+        ],
+        [
+          0.78,
+          0.22
+        ],
+        [
+          0.8,
+          0.82
+        ],
+        [
+          0.2,
+          0.82
+        ]
+      ],
+      "blend": "FABRIC_REALISTIC",
+      "alpha": 0.86,
+      "authoring_status": "default_estimate"
+    },
+    {
+      "id": "embroidered_4",
+      "quad": [
+        [
+          0.22,
+          0.22
+        ],
+        [
+          0.78,
+          0.22
+        ],
+        [
+          0.8,
+          0.82
+        ],
+        [
+          0.2,
+          0.82
+        ]
+      ],
+      "blend": "FABRIC_REALISTIC",
+      "alpha": 0.86,
+      "authoring_status": "default_estimate"
+    },
+    {
+      "id": "kaftan_1",
+      "quad": [
+        [
+          0.22,
+          0.26
+        ],
+        [
+          0.78,
+          0.26
+        ],
+        [
+          0.8,
+          0.66
+        ],
+        [
+          0.2,
+          0.66
+        ]
+      ],
+      "blend": "FABRIC_REALISTIC",
+      "alpha": 0.8,
+      "authoring_status": "default_estimate"
+    },
+    {
+      "id": "kaftan_2",
+      "quad": [
+        [
+          0.22,
+          0.26
+        ],
+        [
+          0.78,
+          0.26
+        ],
+        [
+          0.8,
+          0.66
+        ],
+        [
+          0.2,
+          0.66
+        ]
+      ],
+      "blend": "FABRIC_REALISTIC",
+      "alpha": 0.8,
+      "authoring_status": "default_estimate"
+    },
+    {
+      "id": "kaftan_3",
+      "quad": [
+        [
+          0.22,
+          0.26
+        ],
+        [
+          0.78,
+          0.26
+        ],
+        [
+          0.8,
+          0.66
+        ],
+        [
+          0.2,
+          0.66
+        ]
+      ],
+      "blend": "FABRIC_REALISTIC",
+      "alpha": 0.8,
+      "authoring_status": "default_estimate"
+    },
+    {
+      "id": "modern_1",
+      "quad": [
+        [
+          0.3,
+          0.28
+        ],
+        [
+          0.7,
+          0.28
+        ],
+        [
+          0.72,
+          0.66
+        ],
+        [
+          0.28,
+          0.66
+        ]
+      ],
+      "blend": "FABRIC_REALISTIC",
+      "alpha": 0.8,
+      "authoring_status": "default_estimate"
+    },
+    {
+      "id": "modern_2",
+      "quad": [
+        [
+          0.3,
+          0.28
+        ],
+        [
+          0.7,
+          0.28
+        ],
+        [
+          0.72,
+          0.66
+        ],
+        [
+          0.28,
+          0.66
+        ]
+      ],
+      "blend": "FABRIC_REALISTIC",
+      "alpha": 0.8,
+      "authoring_status": "default_estimate"
+    },
+    {
+      "id": "modern_3",
+      "quad": [
+        [
+          0.3,
+          0.28
+        ],
+        [
+          0.7,
+          0.28
+        ],
+        [
+          0.72,
+          0.66
+        ],
+        [
+          0.28,
+          0.66
+        ]
+      ],
+      "blend": "FABRIC_REALISTIC",
+      "alpha": 0.8,
+      "authoring_status": "default_estimate"
+    },
+    {
+      "id": "modern_4",
+      "quad": [
+        [
+          0.3,
+          0.28
+        ],
+        [
+          0.7,
+          0.28
+        ],
+        [
+          0.72,
+          0.66
+        ],
+        [
+          0.28,
+          0.66
+        ]
+      ],
+      "blend": "FABRIC_REALISTIC",
+      "alpha": 0.8,
+      "authoring_status": "default_estimate"
+    },
+    {
+      "id": "modern_5",
+      "quad": [
+        [
+          0.3,
+          0.28
+        ],
+        [
+          0.7,
+          0.28
+        ],
+        [
+          0.72,
+          0.66
+        ],
+        [
+          0.28,
+          0.66
+        ]
+      ],
+      "blend": "FABRIC_REALISTIC",
+      "alpha": 0.8,
+      "authoring_status": "default_estimate"
     }
   ]
 }

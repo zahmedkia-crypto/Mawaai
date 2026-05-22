@@ -1,23 +1,303 @@
 {
   "_doc": "Optional per-template overrides. Each entry's id must match the filename without extension. quad: [[x0,y0],[x1,y1],[x2,y2],[x3,y3]] in normalized [0..1] coordinates of the base bitmap, ordered top-left, top-right, bottom-right, bottom-left. Templates not listed here use the category defaults (henna: MULTIPLY @ 0.85, 18% inset).",
+  "_authoring_status_legend": {
+    "default_estimate": "Surface-default quad; MUST be refined per-template on-device before release.",
+    "authored": "Manually authored from the actual template image; verified visually.",
+    "masked": "Authored + has matching <id>.mask.png for skin-region integration."
+  },
+  "_surface_defaults": {
+    "palm": "Vertical full-palm region, MULTIPLY @ 0.78-0.82, authored quads in seed set",
+    "hand": "Back-of-hand vertical region, MULTIPLY @ 0.82 (default estimate)",
+    "foot": "Top-of-foot region tapering toward toes, MULTIPLY @ 0.80 (default estimate)"
+  },
   "templates": [
     {
       "id": "palm_light_1",
-      "quad": [[0.18, 0.22], [0.82, 0.20], [0.86, 0.92], [0.14, 0.94]],
+      "quad": [
+        [
+          0.18,
+          0.22
+        ],
+        [
+          0.82,
+          0.2
+        ],
+        [
+          0.86,
+          0.92
+        ],
+        [
+          0.14,
+          0.94
+        ]
+      ],
       "blend": "MULTIPLY",
-      "alpha": 0.82
+      "alpha": 0.82,
+      "authoring_status": "authored"
     },
     {
       "id": "palm_dark_1",
-      "quad": [[0.18, 0.22], [0.82, 0.20], [0.86, 0.92], [0.14, 0.94]],
+      "quad": [
+        [
+          0.18,
+          0.22
+        ],
+        [
+          0.82,
+          0.2
+        ],
+        [
+          0.86,
+          0.92
+        ],
+        [
+          0.14,
+          0.94
+        ]
+      ],
       "blend": "MULTIPLY",
-      "alpha": 0.78
+      "alpha": 0.78,
+      "authoring_status": "authored"
     },
     {
       "id": "palm_medium_2",
-      "quad": [[0.18, 0.22], [0.82, 0.20], [0.86, 0.92], [0.14, 0.94]],
+      "quad": [
+        [
+          0.18,
+          0.22
+        ],
+        [
+          0.82,
+          0.2
+        ],
+        [
+          0.86,
+          0.92
+        ],
+        [
+          0.14,
+          0.94
+        ]
+      ],
       "blend": "MULTIPLY",
-      "alpha": 0.8
+      "alpha": 0.8,
+      "authoring_status": "authored"
+    },
+    {
+      "id": "hand_dark_1",
+      "quad": [
+        [
+          0.22,
+          0.18
+        ],
+        [
+          0.78,
+          0.2
+        ],
+        [
+          0.8,
+          0.86
+        ],
+        [
+          0.2,
+          0.88
+        ]
+      ],
+      "blend": "MULTIPLY",
+      "alpha": 0.82,
+      "authoring_status": "default_estimate"
+    },
+    {
+      "id": "hand_light_2",
+      "quad": [
+        [
+          0.22,
+          0.18
+        ],
+        [
+          0.78,
+          0.2
+        ],
+        [
+          0.8,
+          0.86
+        ],
+        [
+          0.2,
+          0.88
+        ]
+      ],
+      "blend": "MULTIPLY",
+      "alpha": 0.82,
+      "authoring_status": "default_estimate"
+    },
+    {
+      "id": "hand_medium_1",
+      "quad": [
+        [
+          0.22,
+          0.18
+        ],
+        [
+          0.78,
+          0.2
+        ],
+        [
+          0.8,
+          0.86
+        ],
+        [
+          0.2,
+          0.88
+        ]
+      ],
+      "blend": "MULTIPLY",
+      "alpha": 0.82,
+      "authoring_status": "default_estimate"
+    },
+    {
+      "id": "foot_1",
+      "quad": [
+        [
+          0.2,
+          0.3
+        ],
+        [
+          0.8,
+          0.28
+        ],
+        [
+          0.82,
+          0.92
+        ],
+        [
+          0.18,
+          0.94
+        ]
+      ],
+      "blend": "MULTIPLY",
+      "alpha": 0.8,
+      "authoring_status": "default_estimate"
+    },
+    {
+      "id": "foot_2",
+      "quad": [
+        [
+          0.2,
+          0.3
+        ],
+        [
+          0.8,
+          0.28
+        ],
+        [
+          0.82,
+          0.92
+        ],
+        [
+          0.18,
+          0.94
+        ]
+      ],
+      "blend": "MULTIPLY",
+      "alpha": 0.8,
+      "authoring_status": "default_estimate"
+    },
+    {
+      "id": "foot_3",
+      "quad": [
+        [
+          0.2,
+          0.3
+        ],
+        [
+          0.8,
+          0.28
+        ],
+        [
+          0.82,
+          0.92
+        ],
+        [
+          0.18,
+          0.94
+        ]
+      ],
+      "blend": "MULTIPLY",
+      "alpha": 0.8,
+      "authoring_status": "default_estimate"
+    },
+    {
+      "id": "foot_4",
+      "quad": [
+        [
+          0.2,
+          0.3
+        ],
+        [
+          0.8,
+          0.28
+        ],
+        [
+          0.82,
+          0.92
+        ],
+        [
+          0.18,
+          0.94
+        ]
+      ],
+      "blend": "MULTIPLY",
+      "alpha": 0.8,
+      "authoring_status": "default_estimate"
+    },
+    {
+      "id": "foot_5",
+      "quad": [
+        [
+          0.2,
+          0.3
+        ],
+        [
+          0.8,
+          0.28
+        ],
+        [
+          0.82,
+          0.92
+        ],
+        [
+          0.18,
+          0.94
+        ]
+      ],
+      "blend": "MULTIPLY",
+      "alpha": 0.8,
+      "authoring_status": "default_estimate"
+    },
+    {
+      "id": "foot_6",
+      "quad": [
+        [
+          0.2,
+          0.3
+        ],
+        [
+          0.8,
+          0.28
+        ],
+        [
+          0.82,
+          0.92
+        ],
+        [
+          0.18,
+          0.94
+        ]
+      ],
+      "blend": "MULTIPLY",
+      "alpha": 0.8,
+      "authoring_status": "default_estimate"
     }
   ]
 }
