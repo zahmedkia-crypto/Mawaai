@@ -7,5 +7,12 @@
     "blend": "FABRIC_REALISTIC",
     "alpha": 0.80
   },
-  "templates": []
+  "templates": [
+    {
+      "id": "modern_1",
+      "quad": [[0.30, 0.28], [0.70, 0.28], [0.72, 0.66], [0.28, 0.66]],
+      "blend": "FABRIC_REALISTIC",
+      "alpha": 0.80
+    }
+  ]
 }

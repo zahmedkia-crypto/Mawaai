@@ -19,6 +19,10 @@ import com.mawaai.love.app.design.ai.pipelines.safeRecycle
 import com.mawaai.love.app.design.ai.pipelines.specializedNegativePromptFor
 import com.mawaai.love.app.design.ai.pipelines.specializedPromptFor
 import com.mawaai.love.app.design.ai.pipelines.stylePromptFor
+import com.mawaai.love.app.design.ai.preservation.ControlledImprovementEngine
+import com.mawaai.love.app.design.ai.preservation.MaterialRenderer
+import com.mawaai.love.app.design.ai.preservation.SketchScanner
+import com.mawaai.love.app.design.ai.preservation.SketchStructureAnalyzer
 import com.mawaai.love.app.design.ai.processors.BlendMode
 import com.mawaai.love.app.design.ai.processors.BlendModeProcessor
 import com.mawaai.love.app.design.ai.processors.EdgeDetectionProcessor
@@ -32,10 +36,12 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Phase 5 routing model: every pipeline tries the cloud (HuggingFace)
- * path first when [HuggingFaceClient.isConfigured] is true, falls back
- * to the on-device path on any cloud failure, and runs every successful
- * output through [OfflineEnhancer] for the final polish.
+ * Routing model:
+ *  - Converter flow uses Cloudflare Workers AI first, with Gemini prompt
+ *    shaping when available.
+ *  - Specialized garment flow stays local-first for preservation.
+ *  - Both paths fall back to the on-device pipeline when cloud calls fail.
+ *  - Every successful output goes through [OfflineEnhancer] for the final polish.
  *
  * Design contract: a cloud call returning null is **always** treated as
  * "not configured / error / fallback to local" — never as a hard error.
@@ -57,6 +63,10 @@ class AIEngineImpl @Inject constructor(
     private val huggingFace: dagger.Lazy<HuggingFaceClient>,
     private val offlineEnhancer: OfflineEnhancer,
     private val autoStylePicker: AutoStylePicker,
+    private val sketchScanner: SketchScanner,
+    private val structureAnalyzer: SketchStructureAnalyzer,
+    private val improvementEngine: ControlledImprovementEngine,
+    private val materialRenderer: MaterialRenderer,
     private val visionClient: GeminiVisionClient,
     // Phase 23 — extra cloud providers wired into the DI graph.
     //
@@ -165,100 +175,34 @@ class AIEngineImpl @Inject constructor(
         onProgress: (ProcessingStage) -> Unit
     ): Bitmap {
         ensureInit()
-        onProgress(ProcessingStage.Init)
-        val downsized = downsizeIfNeeded(input, MAX_INPUT_DIMENSION)
+        onProgress(ProcessingStage.Scanning)
+        val scanned = sketchScanner.scan(input, MAX_INPUT_DIMENSION)
 
-        onProgress(ProcessingStage.Segmenting)
-        // Three-tier segmentation chain (Phase 23):
-        //   1. HuggingFace `briaai/RMBG-1.4` — cheap (no quota), good
-        //      cuts on cluttered backgrounds, primary cloud path.
-        //   2. remove.bg — premium fallback when HF fails. Burns
-        //      monthly quota (50/month free) so we ONLY enter this
-        //      branch when HF returned null (network / throttle /
-        //      decode error) — never as the default.
-        //   3. ML Kit Subject Segmentation — on-device, free, fast.
-        //      Last-resort path that doesn't need the network.
-        val cloudCut = run {
-            val hf = huggingFace.get()
-            val hfCut = if (hf.isConfigured) {
-                tryOrNull("HF removeBackground failed") { hf.removeBackground(downsized) }
-            } else null
-            hfCut ?: run {
-                val rb = removeBg.get()
-                if (rb.isConfigured) {
-                    Log.i(TAG, "HF segmentation unavailable; falling back to remove.bg")
-                    tryOrNull("Premium removeBackground (fallback) failed") { rb.removeBackground(downsized) }
-                } else null
-            }
-        }
-        val segmented = cloudCut ?: safeSegment(downsized)
-        val foreground = segmented ?: downsized
+        onProgress(ProcessingStage.Understanding)
+        val analysis = structureAnalyzer.analyze(scanned)
 
-        // Snapshot the foreground confidence alpha BEFORE the downstream
-        // TFLite processors strip it (style transfer + super-res return
-        // fully-opaque bitmaps). Closes AI7 (see audit-fix entry).
-        val foregroundMask: Bitmap? = segmented?.let {
-            tryOrNull("extractAlpha failed") { it.extractAlpha() }
-        }
+        onProgress(ProcessingStage.Improving)
+        val improved = improvementEngine.improve(scanned, analysis)
 
-        onProgress(ProcessingStage.EdgeDetecting)
-        val edged = if (openCvOk) {
-            tryOrDefault("Edge detection failed", foreground) { edges.cannyEdges(foreground) }
-        } else foreground
-
-        onProgress(ProcessingStage.Stylizing)
-        // Phase 24 — REAL design generation, not just a TFLite filter:
-        //   1. Cloud first: ControlNet conditioned on the user's Canny
-        //      edges + a category-aware prompt. The output is a
-        //      photorealistic rendering of the design (henna ink on
-        //      skin, embroidered fabric, carved wall ornament, ...)
-        //      that *preserves the sketch's structure* but replaces
-        //      the medium. This is the visible quality jump the user
-        //      asked for: "convert my drawings into REAL designs".
-        //   2. On-device fallback: when the cloud path is unavailable
-        //      (no key, network, throttle), we keep the previous TFLite
-        //      `styleTransfer.stylize(...)` behaviour so the pipeline
-        //      still produces something usable offline.
-        val cloudGenerated = runSpecializedCloud(
-            edges = edged,
-            categoryId = categoryId,
-            subTypeId = subTypeId,
-            styleId = styleId
-        )
-        val stylized = cloudGenerated ?: tryOrDefaultBrief("Style transfer skipped", edged) {
-            styleTransfer.get().stylize(edged, styleId ?: "auto")
-        }
-
-        val tinted = if (foregroundMask != null) {
-            applyTone(stylized, categoryId, skinTone, fabricTone, foregroundMask)
-        } else {
-            stylized
-        }
-
-        onProgress(ProcessingStage.Upscaling)
-        val upscaled = tryOrDefaultBrief("Upscale skipped", tinted) {
-            superResolution.get().upscale(tinted)
-        }
-
-        // Phase 5: every pipeline output is polished — unsharp mask +
-        // saturation lift. Phase 10: the polish is now category-aware so
-        // henna gets sharper linework, abaya/thob get richer fabric, and
-        // walls get a light touch. Falls through to the input bitmap if
-        // OpenCV is unavailable (graceful no-op).
-        val polished = tryOrDefault("OfflineEnhancer skipped", upscaled) {
-            offlineEnhancer.enhance(upscaled, categoryId)
+        onProgress(ProcessingStage.RenderingMaterial)
+        val rendered = materialRenderer.render(improved, categoryId)
+        val preservedOutput = tryOrDefault("OfflineEnhancer skipped", rendered.bitmap) {
+            offlineEnhancer.enhance(rendered.bitmap, categoryId)
         }
 
         recycleIntermediates(
-            candidates = listOfNotNull(
-                downsized, cloudCut, foreground, foregroundMask,
-                edged, stylized, tinted, upscaled
+            candidates = listOf(
+                scanned.cleanPng,
+                scanned.inkMask,
+                scanned.contourMask,
+                improved.bitmap,
+                rendered.bitmap
             ),
-            keep = listOf(input, polished)
+            keep = listOf(input, preservedOutput)
         )
 
         onProgress(ProcessingStage.Done)
-        return polished
+        return preservedOutput
     }
 
     override suspend fun processConverter(
@@ -270,24 +214,20 @@ class AIEngineImpl @Inject constructor(
         onProgress(ProcessingStage.Init)
         val downsized = downsizeIfNeeded(input, MAX_INPUT_DIMENSION)
 
-        // Cloud-first converter: ControlNet conditioned on a Canny-edge
-        // pass over the user's sketch produces a real generated image.
-        // When the cloud call succeeds we skip style transfer entirely —
-        // the on-device style transfer was always a stand-in for "real"
-        // generation. Falls through to the local pipeline on failure.
-        if (huggingFace.get().isConfigured) {
-            val cloud = runConverterCloud(downsized, styleId, onProgress)
-            if (cloud != null) {
-                val polished = tryOrDefault("OfflineEnhancer skipped", cloud) {
-                    offlineEnhancer.enhance(cloud)
-                }
-                recycleIntermediates(
-                    candidates = listOf(downsized, cloud),
-                    keep = listOf(input, polished)
-                )
-                onProgress(ProcessingStage.Done)
-                return polished
+        // Cloud-first converter: Cloudflare img2img keeps the sketch
+        // composition while Gemini helps shape the prompt. If that path
+        // fails, the existing on-device branch still returns something.
+        val cloud = runConverterCloud(downsized, styleId, onProgress)
+        if (cloud != null) {
+            val polished = tryOrDefault("OfflineEnhancer skipped", cloud) {
+                offlineEnhancer.enhance(cloud)
             }
+            recycleIntermediates(
+                candidates = listOf(downsized, cloud),
+                keep = listOf(input, polished)
+            )
+            onProgress(ProcessingStage.Done)
+            return polished
         }
 
         // ----- on-device fallback (unchanged from Phase 4) ---------------
@@ -321,46 +261,24 @@ class AIEngineImpl @Inject constructor(
     }
 
     /**
-     * Cloud-only converter pipeline. Returns null on any failure so the
+     * Cloud-first converter pipeline. Returns null on any failure so the
      * caller can fall back to the on-device path. Reports
      * [ProcessingStage.EdgeDetecting] + [ProcessingStage.Stylizing]
      * progress so the existing UI hooks keep working.
      *
-     * Phase 11 adds two "thinking" steps in front of the render:
-     *  1. **AutoStylePicker** — when the caller passes `null` or
-     *     `"auto"`, classify the sketch into one of the four concrete
-     *     styles instead of falling through to the generic else prompt.
-     *     Local, deterministic, < 30 ms.
-     *  2. **Vision-tailored prompt** — when Gemini is configured, ask
-     *     Vision to write a custom ControlNet prompt that captures
-     *     **this specific sketch** in the chosen style. Falls back to
-     *     the static [stylePromptFor] when Vision is unavailable or
-     *     returns nothing usable.
+     * Gemini shapes the prompt when available; Cloudflare Workers AI
+     * does the actual image-to-image render.
      */
     private suspend fun runConverterCloud(
         downsized: Bitmap,
         styleId: String?,
         onProgress: (ProcessingStage) -> Unit
     ): Bitmap? {
-        // Step 0: pick the actual style. The user-facing "auto" option
-        // (the FIRST and recommended option in the styles list) routed
-        // every render through the generic fallback before Phase 11.
         val resolvedStyle = resolveStyle(styleId, downsized)
 
-        // ControlNet wants Canny edges as the conditioning input. When
-        // OpenCV isn't available we can still send the original image —
-        // most ControlNet endpoints handle raw photos by extracting
-        // edges server-side, but the result quality is lower.
         onProgress(ProcessingStage.EdgeDetecting)
-        val edgesForCloud = if (openCvOk) {
-            tryOrDefault("Cloud edge prep failed", downsized) { edges.cannyEdges(downsized) }
-        } else downsized
-
         onProgress(ProcessingStage.Stylizing)
-        // Try Vision-tailored prompt first; fall back to static prompt
-        // on any failure (no Gemini key, network, parse error). Tailored
-        // path is gated on `isConfigured` to skip the network round-trip
-        // entirely when the key is absent.
+
         val tailored = if (visionClient.isConfigured) {
             tryOrNull("Tailored prompt fetch threw") {
                 visionClient.tailoredControlNetPrompt(downsized, resolvedStyle)
@@ -368,19 +286,36 @@ class AIEngineImpl @Inject constructor(
         } else null
         val prompt = tailored ?: stylePromptFor(resolvedStyle)
         val negativePrompt = negativePromptFor(resolvedStyle)
-        val baseParams = controlNetParamsFor(resolvedStyle)
 
-        val rendered = renderWithGradeRetry(
-            edges = edgesForCloud,
+        val rendered = runConverterCloudflare(
             sketch = downsized,
             prompt = prompt,
-            negativePrompt = negativePrompt,
-            baseParams = baseParams,
-            resolvedStyle = resolvedStyle
-        )
+            negativePrompt = negativePrompt
+        ) ?: return null
 
-        if (edgesForCloud !== downsized && rendered != null) edgesForCloud.safeRecycle()
         return rendered
+    }
+
+    /**
+     * Cloudflare Workers AI img2img render used by the converter path.
+     * The input bitmap is the user's sketch; a low-strength img2img pass
+     * keeps the layout while turning it into a finished render.
+     */
+    private suspend fun runConverterCloudflare(
+        sketch: Bitmap,
+        prompt: String,
+        negativePrompt: String
+    ): Bitmap? {
+        val cf = cloudflare.get()
+        if (!cf.isConfigured) return null
+        return tryOrNull("Cloudflare img2img converter failed") {
+            cf.imageToImage(
+                input = sketch,
+                prompt = prompt,
+                negativePrompt = negativePrompt,
+                strength = 0.32
+            )
+        }
     }
 
     /**

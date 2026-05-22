@@ -132,7 +132,13 @@ private fun FailedView(message: String?, onRetry: () -> Unit) {
 }
 
 private fun stageLabel(stage: ProcessingStage): Int = when (stage) {
-    ProcessingStage.Init -> R.string.stage_analyzing
+    ProcessingStage.Init -> R.string.stage_scanning
+    ProcessingStage.Scanning -> R.string.stage_scanning
+    ProcessingStage.Understanding -> R.string.stage_understanding
+    ProcessingStage.Improving -> R.string.stage_improving
+    ProcessingStage.RenderingMaterial -> R.string.stage_rendering_material
+    ProcessingStage.ApplyingToFabric -> R.string.stage_applying_fabric
+    ProcessingStage.FinalPolish -> R.string.stage_final_polish
     ProcessingStage.Segmenting -> R.string.stage_extracting
     ProcessingStage.EdgeDetecting -> R.string.stage_edge_detecting
     ProcessingStage.Stylizing -> R.string.stage_applying

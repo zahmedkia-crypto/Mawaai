@@ -72,6 +72,12 @@
 
     <!-- Processing stages -->
     <string name="stage_analyzing">Analyzing drawing…</string>
+    <string name="stage_scanning">Scanning drawing…</string>
+    <string name="stage_understanding">Understanding structure…</string>
+    <string name="stage_improving">Improving weak areas…</string>
+    <string name="stage_rendering_material">Rendering material…</string>
+    <string name="stage_applying_fabric">Applying to fabric…</string>
+    <string name="stage_final_polish">Final polish…</string>
     <string name="stage_extracting">Extracting elements…</string>
     <string name="stage_applying">Applying style…</string>
     <string name="stage_generating">Generating variations…</string>
@@ -290,12 +296,12 @@
     <string name="ai_scene_error_generation_failed">Could not generate the image. Check your connection and try again.</string>
 
     <!-- Template apply pipeline (Phase 25 — multi-step compose-refine) -->
-    <string name="template_apply_stage_compose">Compose</string>
-    <string name="template_apply_stage_refine">AI Refine</string>
+    <string name="template_apply_stage_compose">Applying</string>
+    <string name="template_apply_stage_refine">Fabric</string>
     <string name="template_apply_stage_polish">Polish</string>
     <string name="template_apply_status_idle">Ready</string>
-    <string name="template_apply_status_compose">Step 1 of 3 — placing your design on the template…</string>
-    <string name="template_apply_status_refine">Step 2 of 3 — AI is integrating the design naturally…</string>
+    <string name="template_apply_status_compose">Step 1 of 3 — applying to fabric…</string>
+    <string name="template_apply_status_refine">Step 2 of 3 — preserving folds and lighting…</string>
     <string name="template_apply_status_polish">Step 3 of 3 — final polish…</string>
     <string name="template_apply_status_done">Done</string>
 </resources>

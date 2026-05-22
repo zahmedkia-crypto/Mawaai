@@ -22,7 +22,7 @@ object DatabaseModule {
             context,
             MawaaiDatabase::class.java,
             "mawaai_db"
-        ).fallbackToDestructiveMigration().build()
+        ).build()
     }
 
     @Provides

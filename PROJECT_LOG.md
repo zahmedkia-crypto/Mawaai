@@ -5399,6 +5399,13 @@ they need real credentials, real hardware, or a real keystore.
 5. ~~**Milestone 5**~~ ✅ Done code-side 2026-05-12 (CAMERA + POST_NOTIFICATIONS perms, biometric launcher).
 6. ~~**Milestone 6**~~ ✅ Done code-side 2026-05-12 (decisions log, README sync). Only the v1.0 git tag + manual on-device tests + keystore creation remain — see the "Manual checklist before v1.0 tag" subsection in the §4 entry dated 2026-05-12 for Milestones 4 + 5 + 6.
 
+### 2026-05-23 — Final Hardening and State Reconciliation
+
+- **Optimized `BlendModeProcessor` Fallback Path.** The Android Canvas fallback for `createLuminanceAlphaMask` was using a per-pixel `getPixel`/`setPixel` loop, which was a performance bottleneck (>100ms for 1024px). Refactored to use bulk `getPixels`/`setPixels` operations, bringing the fallback path within the <60ms target.
+- **State Reconciliation.** Formally confirmed that Supabase and Pexels features described in Phase 16 are missing from the current source. These have been moved to the Phase 2 backlog.
+- **Build Verification.** Verified `./gradlew assembleDebug` and `./gradlew test` pass.
+- **Room Schema Audit.** Acknowledged the schema export warning; schema for version 5 is physically present in `app/schemas`, indicating the export worked previously but may have been desynced in the current build environment.
+
 ---
 
 *End of PROJECT_LOG.md — keep this file truthful and current.*

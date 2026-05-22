@@ -2,6 +2,12 @@ package com.mawaai.love.app.design.ai
 
 sealed class ProcessingStage {
     object Init : ProcessingStage()
+    object Scanning : ProcessingStage()
+    object Understanding : ProcessingStage()
+    object Improving : ProcessingStage()
+    object RenderingMaterial : ProcessingStage()
+    object ApplyingToFabric : ProcessingStage()
+    object FinalPolish : ProcessingStage()
     object Segmenting : ProcessingStage()
     object EdgeDetecting : ProcessingStage()
     object Stylizing : ProcessingStage()

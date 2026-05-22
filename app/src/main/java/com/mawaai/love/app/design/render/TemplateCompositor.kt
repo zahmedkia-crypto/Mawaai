@@ -36,12 +36,15 @@ class TemplateCompositor @Inject constructor(
             destinationSize = Size(base.width.toDouble(), base.height.toDouble()),
             destinationQuad = quad
         )
+        val mask = templates.loadMaskBitmap(template)
         val composited = blender.blend(
             base = base,
             overlay = warped,
             mode = rules.mode,
-            overlayAlpha = rules.overlayAlpha
+            overlayAlpha = rules.overlayAlpha,
+            mask = mask
         )
+        mask?.recycle()
         if (warped !== composited) warped.recycle()
         composited
     }
@@ -50,8 +53,8 @@ class TemplateCompositor @Inject constructor(
         val defaults = when (categoryId) {
             // Henna inks darkly onto skin — MULTIPLY simulates the dye.
             "henna" -> BlendRules(mode = BlendMode.MULTIPLY, overlayAlpha = 0.85, insetFraction = 0.18f)
-            // Abaya fabric needs the artwork to ride on top of folds — OVERLAY.
-            "abaya" -> BlendRules(mode = BlendMode.OVERLAY, overlayAlpha = 0.75, insetFraction = 0.22f)
+            // Abaya fabric needs fold-aware lighting preservation.
+            "abaya" -> BlendRules(mode = BlendMode.FABRIC_REALISTIC, overlayAlpha = 0.80, insetFraction = 0.22f)
             // Walls are flat painted surfaces — NORMAL keeps the artwork crisp.
             "walls" -> BlendRules(mode = BlendMode.NORMAL, overlayAlpha = 0.95, insetFraction = 0.12f)
             // Sudanese thob: lightweight draped fabric; slightly higher alpha

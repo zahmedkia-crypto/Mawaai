@@ -2,6 +2,7 @@ package com.mawaai.love.app.design.ai.processors
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
@@ -138,6 +139,7 @@ class BlendModeProcessor @Inject constructor() {
         } else {
             Bitmap.createScaledBitmap(mask, w, h, true)
         }
+        val luminanceMask = createLuminanceAlphaMask(scaledMask)
         val result = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(result)
         canvas.drawBitmap(overlay, 0f, 0f, null)
@@ -145,9 +147,33 @@ class BlendModeProcessor @Inject constructor() {
             xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
             isFilterBitmap = true
         }
-        canvas.drawBitmap(scaledMask, 0f, 0f, maskPaint)
+        canvas.drawBitmap(luminanceMask, 0f, 0f, maskPaint)
+        luminanceMask.recycle()
         if (scaledMask !== mask) scaledMask.recycle()
         return result
+    }
+
+    private fun createLuminanceAlphaMask(mask: Bitmap): Bitmap {
+        val w = mask.width
+        val h = mask.height
+        val pixels = IntArray(w * h)
+        mask.getPixels(pixels, 0, w, 0, 0, w, h)
+
+        for (i in pixels.indices) {
+            val c = pixels[i]
+            val a = (c shr 24) and 0xFF
+            val r = (c shr 16) and 0xFF
+            val g = (c shr 8) and 0xFF
+            val b = c and 0xFF
+
+            val lum = (r * 0.299f + g * 0.587f + b * 0.114f).toInt()
+            val alpha = (lum * (a / 255f)).toInt().coerceIn(0, 255)
+            pixels[i] = (alpha shl 24) or 0x00FFFFFF
+        }
+
+        val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        out.setPixels(pixels, 0, w, 0, 0, w, h)
+        return out
     }
 }
 
@@ -293,10 +319,18 @@ private fun MatScope.buildEffectiveMask(
         val maskChannels = ArrayList<Mat>()
         Core.split(maskMat, maskChannels)
         maskChannels.forEach { take(it) }
-        // The mask is expected to encode confidence in the alpha channel
-        // (the natural output of Bitmap.extractAlpha + ARGB_8888 copy).
+        val red = take(Mat())
+        val green = take(Mat())
+        val blue = take(Mat())
+        maskChannels[0].convertTo(red, CvType.CV_32F, 0.299 / 255.0)
+        maskChannels[1].convertTo(green, CvType.CV_32F, 0.587 / 255.0)
+        maskChannels[2].convertTo(blue, CvType.CV_32F, 0.114 / 255.0)
         val maskValueF = take(Mat())
-        maskChannels[3].convertTo(maskValueF, CvType.CV_32F, 1.0 / 255.0)
+        Core.add(red, green, maskValueF)
+        Core.add(maskValueF, blue, maskValueF)
+        val maskAlphaF = take(Mat())
+        maskChannels[3].convertTo(maskAlphaF, CvType.CV_32F, 1.0 / 255.0)
+        Core.multiply(maskValueF, maskAlphaF, maskValueF)
         Core.multiply(mask1, maskValueF, mask1)
     }
 
