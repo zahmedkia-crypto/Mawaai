@@ -422,7 +422,11 @@ class GeminiVisionClient @Inject constructor(
         // requests now 404 with that suffix. The canonical name resolves
         // to the current stable build of 1.5-flash without changing the
         // request shape or quota tier.
-        const val MODEL = "gemini-1.5-flash"
+        // MT-014 (2026-05-23): Gemini 1.5 family is deprecated; ListModels API returns only
+        // gemini-2.0-flash, gemini-2.0-flash-lite, gemini-2.5-flash. The 1.5 alias caused
+        // HTTP 404 in tailoredControlNetPrompt. Pin to canonical 2.0-flash (same
+        // generateContent contract, no -latest alias, free-tier accessible).
+        const val MODEL = "gemini-2.0-flash"
         const val MAX_UPLOAD_DIMENSION = 768
         // Marker the model emits in front of each suggestion line in
         // the chain-of-thought response. Used by `parseSuggestions` to

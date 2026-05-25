@@ -61,9 +61,12 @@ class GeminiClient @Inject constructor(
 
     private companion object {
         const val TAG = "GeminiClient"
-        // Same `-latest` alias deprecation as GeminiVisionClient — see
-        // the inline note there. Canonical model name keeps free-tier
-        // quota + the same generateContent contract.
-        const val MODEL = "gemini-1.5-flash"
+        // MT-014 (2026-05-23): Gemini 1.5 family is fully deprecated. Google’s
+        // ListModels API now returns only the 2.0 / 2.5 flash family. The 1.5
+        // alias started returning HTTP 404 for generateContent in production,
+        // which previously surfaced as silent emptyList() because of the
+        // runCatching block above. Pin to canonical 2.0-flash (same
+        // generateContent contract, no -latest alias, free-tier accessible).
+        const val MODEL = "gemini-2.0-flash"
     }
 }
