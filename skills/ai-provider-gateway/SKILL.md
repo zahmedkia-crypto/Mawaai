@@ -1,176 +1,157 @@
 ---
 name: ai-provider-gateway
-description: Designs and maintains multi-provider AI client abstractions on Android — typed VisionProvider/TextProvider sealed interfaces, automatic fallback chains across Gemini, OpenRouter, Groq, Cloudflare Workers AI, HuggingFace, user-configurable provider order, deprecation-resilient model registries, and strongly-typed recoverable/fatal error translation. Use whenever adding a new AI provider, debugging an HTTP 404/429 from a single provider, building a Settings screen for AI selection, designing a fallback chain executor, or refactoring code that hardcodes a single Gemini/OpenAI client. Pairs with mobile-ai-api-integrator (for individual provider Retrofit clients) and production-readiness-auditor (for hygiene/audit reports).
+description: Designs and reviews multi-provider AI gateway abstractions for mobile apps. Use whenever wiring more than one AI provider behind a unified interface, building a fallback chain across providers (Gemini, OpenRouter, Groq, Cloudflare, HuggingFace), translating provider-specific errors into typed domain errors, or designing the settings UX for user-driven provider selection. Activates when the user is being burned by single-provider deprecations (e.g. Gemini 1.5 → 404), wants to add a new free provider, or needs a kill-switch to bypass a misbehaving provider in production.
 icon: shuffle
 color: Teal
-related_server_ids: [github]
 ---
 
 # AI Provider Gateway
 
-A specialist skill for the **multi-provider AI client abstraction** discipline on Android. Born from MT-014 in the MAWAAI project (where Google's deprecation of `gemini-1.5-flash` crashed the production app with HTTP 404). The lesson: **never let one provider's outage or deprecation reach the user**.
+A discipline skill for keeping mobile apps resilient when AI providers deprecate models, rate-limit, or simply disappear.
 
-## When to Use
+## When To Use
 
-Activate this skill whenever any of these are true:
+- Designing or modifying a multi-provider AI abstraction (VisionProvider, TextProvider, ImageEditProvider, AudioProvider, etc.)
+- Wiring a NEW AI provider into an existing app
+- A user-reported crash is caused by a deprecated provider model (e.g. `HTTP 404 models/gemini-1.5-flash is not found`)
+- Building "Auto fallback" or "Pin provider" preference UX
+- Reviewing a PR that adds, removes, or changes a provider
+- Writing a smoke-test harness against multiple AI providers
+- The user asks "how do I switch to Groq / OpenRouter / Cloudflare / ..."
 
-- Adding a new AI provider (Groq, OpenRouter, Cloudflare Workers AI, HuggingFace, OpenAI, Anthropic, etc.)
-- Debugging an HTTP 404 from a provider that previously worked (model deprecation)
-- Designing a Settings screen that lets the user pick or reorder AI providers
-- Refactoring code that hardcodes a single Gemini/OpenAI/Claude client
-- Building or testing the FallbackChain executor
-- Reviewing AI client code for hygiene (no leaked keys, no `Map<String, Any>`, typed errors)
-
-If the task is just "add one more endpoint to an existing client and don't change anything else", do not activate — use `mobile-ai-api-integrator` instead.
+If the task is calling a SINGLE provider directly and there is no fallback intent, do not activate — use `mobile-ai-api-integrator` instead.
 
 ## Hard Rules
 
-1. **Provider-agnostic interface first.** Define `sealed interface VisionProvider` and `sealed interface TextProvider` BEFORE writing any concrete client. New providers register against the interface, not the other way around.
+1. **One typed interface per modality.** `VisionProvider`, `TextProvider`, `ImageEditProvider` are sealed interfaces. Each concrete provider implements exactly one (or several, if they support multiple modalities).
 
-2. **Typed errors, not strings.** Every recoverable failure (404 / 429 / 503 / timeout / quota) becomes a `ProviderRecoverableError` subclass. Every fatal failure (401 / 400 / safety block) becomes a `ProviderFatalError` subclass. The chain executor branches on `when` over the sealed hierarchy — never on `e.message.contains("404")`.
+2. **ProviderId is an enum, not a string.** Compile-time exhaustiveness > stringly typed.
 
-3. **No `Map<String, Any>`.** Every chat/vision request body is a `data class` with `@SerializedName` mappings. OpenAI-compatible providers (Groq, OpenRouter, etc.) all reuse the same `ChatCompletionRequest` shape — define it once.
+3. **Errors are sealed too.** `ProviderRecoverableError` (404, 429, 503, timeout, quota) triggers the next provider in the chain. `ProviderFatalError` (401, 403, 400, content-blocked) stops the chain immediately.
 
-4. **Fallback continues on recoverable, stops on fatal.** A `ProviderFatalError.InvalidKey` means the user needs to fix their config; do NOT try the next provider (it would mask the real problem). A `ProviderRecoverableError.NotFound` (provider deprecated a model) means "try next" — that's exactly what saves the app from the next deprecation.
+4. **Adapters wrap, never modify.** When wiring an existing client (GeminiVisionClient, OpenRouterClient) into the gateway, write an Adapter class that calls the existing client's public methods. Do NOT edit the existing client.
 
-5. **User-controlled order via DataStore.** The provider chain order is a user preference, not a constant. Default order is documented (Gemini → OpenRouter → Groq → Cloudflare → HF) but the user can rearrange or pin.
+5. **Configuration via BuildConfig, never hard-coded.** Each provider reads its key from a BuildConfig field populated from `local.properties` (gitignored).
 
-6. **Skip unconfigured providers.** Each provider has `isConfigured: Boolean` reading from `BuildConfig`. The chain skips providers whose `isConfigured == false`. If all are unconfigured, return a `Result.failure` explaining the user must add at least one key.
+6. **Never log keys, base64 payloads, or response bodies that may contain user content.** Log provider name, HTTP code, latency only.
 
-7. **No API key in any UI string.** Settings screen shows only configured/not, never the key value itself. Health-check diagnostics show PASS/FAIL + latency, never the response body that may echo headers.
+7. **Fallback order is user-controlled.** The default order is shipped but the user MUST be able to rearrange, disable, or pin a single provider via Settings.
 
-8. **Each provider in its own package.** `design/ai/groq/`, `design/ai/cloudflare/`, etc. Pure additive — adding a new provider does not touch any existing provider's files.
+8. **One provider, one file (per modality).** A `GroqVisionProvider` lives in its own file. Do not combine multiple providers in a single Kotlin file — it hurts diff readability and complicates future deprecation cleanup.
 
-## Workflow
+## Architecture (Mandatory Shape)
 
-For every "add provider X" or "build a switcher" task:
+```
+design/ai/gateway/
+├── AiProvider.kt              sealed VisionProvider + TextProvider + ImageEditProvider
+│                              ProviderId enum
+│                              ProviderRecoverableError + ProviderFatalError sealed hierarchies
+├── FallbackChain.kt           the chain executor
+├── ProviderRegistry.kt        DI registry; reads user-configured order from DataStore
+└── adapters/
+    ├── GeminiVisionProviderAdapter.kt        wraps existing GeminiVisionClient
+    ├── OpenRouterVisionProviderAdapter.kt    wraps existing OpenRouterClient
+    ├── GroqVisionProviderAdapter.kt          wraps Groq client
+    └── CloudflareVisionProviderAdapter.kt    wraps Cloudflare client
+```
 
-### Phase 0 — Confirm scope
+Concrete provider client packages stay in their own folders:
+```
+design/ai/gemini/        existing GeminiVisionClient, GeminiClient
+design/ai/openrouter/    existing OpenRouterClient
+design/ai/groq/          NEW — GroqApi, GroqClient, GroqDtos
+design/ai/cloudflare/    existing CloudflareClient (possibly extended)
+```
 
-Echo back the user's intent in 3 bullets:
-- Which provider(s) are being added?
-- Is this just a new provider, or does the gateway abstraction itself need work?
-- Is there an immediate user-facing crash (like HTTP 404) we're fixing, or is this pre-emptive resilience work?
-
-### Phase 1 — Verify the gateway foundation exists
-
-Read these files (only these):
-- `design/ai/gateway/AiProvider.kt`
-- `design/ai/gateway/FallbackChain.kt`
-- `design/ai/gateway/ProviderRegistry.kt`
-
-If they don't exist, building them is the first MT. See `references/gateway-bootstrap.md` for the foundation template.
-
-### Phase 2 — Define the new provider's contract
-
-For each new provider:
-- Verify the auth method (Bearer header? `?key=` query? `X-Api-Key` header?)
-- Verify the request shape (OpenAI-compatible chat completions? Anthropic messages format? Google generateContent?)
-- Verify the response shape (where's the text? where's the image data URL?)
-- Identify which HTTP codes map to recoverable vs fatal errors
-- Confirm the free-tier model name + when it last worked (audit date)
-
-Document all of this in a `references/<provider>-protocol.md` if multiple providers share the family (e.g. one doc for the OpenAI-compatible family covering Groq, OpenRouter, etc.).
-
-### Phase 3 — Write the provider
-
-One file per concrete provider, in its own package. Pattern:
+## Adapter Pattern (Canonical)
 
 ```kotlin
 @Singleton
-class GroqVisionProvider @Inject constructor(
-    private val api: GroqApi
+class GroqVisionProviderAdapter @Inject constructor(
+    private val client: GroqClient
 ) : VisionProvider {
-
     override val id = ProviderId.GROQ
-    override val isConfigured get() = BuildConfig.GROQ_API_KEY.isNotBlank()
+    override val isConfigured: Boolean get() = client.isConfigured
 
-    override suspend fun visionAnalyze(prompt: String, image: Bitmap): Result<String> {
-        if (!isConfigured) return Result.failure(
-            ProviderFatalError.InvalidKey("GROQ_API_KEY not set")
-        )
-        // Encode bitmap on Dispatchers.Default, call API on Dispatchers.IO.
-        // Translate HTTP errors to typed gateway errors.
-        // Return Result with the model's text content.
-    }
+    override suspend fun visionAnalyze(prompt: String, image: Bitmap): Result<String> =
+        client.visionAnalyze(prompt, image)
+            .recoverCatching { e -> throw translateError(e) }
+}
 
-    private companion object {
-        const val TAG = "GroqVisionProvider"
-        // Pin the model with audit date so deprecations are tracked.
-        const val MODEL = "llama-3.2-90b-vision-preview" // verified 2026-05-25
+private fun translateError(e: Throwable): Throwable {
+    val httpCode = (e as? retrofit2.HttpException)?.code()
+    return when (httpCode) {
+        404 -> ProviderRecoverableError.NotFound("Model deprecated: ${e.message}")
+        429 -> ProviderRecoverableError.RateLimited("Rate limited")
+        503 -> ProviderRecoverableError.ServiceUnavailable("Provider unavailable")
+        in 500..599 -> ProviderRecoverableError.ServiceUnavailable("Server error $httpCode")
+        401, 403 -> ProviderFatalError.InvalidKey("Auth failed")
+        in 400..499 -> ProviderFatalError.MalformedRequest("HTTP $httpCode")
+        null -> when (e) {
+            is java.net.SocketTimeoutException -> ProviderRecoverableError.Timeout("Socket timeout")
+            is java.io.IOException -> ProviderRecoverableError.ServiceUnavailable("Network: ${e.message}")
+            else -> ProviderRecoverableError.ServiceUnavailable("Unknown: ${e.message}")
+        }
+        else -> ProviderRecoverableError.ServiceUnavailable("HTTP $httpCode")
     }
 }
 ```
 
-Anti-pattern to avoid: a provider that throws raw `retrofit2.HttpException`. Always translate to the gateway's typed errors so the chain executor can branch correctly.
+## Settings UX Pattern
 
-### Phase 4 — Register with the chain
+The user MUST be able to:
+- Toggle between "Auto fallback" and "Pin a single provider".
+- See which providers are configured (has API key) vs unconfigured.
+- Reorder the auto-fallback chain via drag.
+- Run a live health check that reports each provider's HTTP status + latency without storing the result.
 
-Update `ProviderRegistry` to include the new provider in the default chain. Update the Settings UI to expose it as a pickable option.
-
-### Phase 5 — Health-check the live API
-
-Run a smoke test (gated by `MAWAAI_RUN_LIVE_API_TESTS=1` env var) hitting the provider's lightest billable endpoint. Document the latency baseline so the user knows what "healthy" looks like.
-
-### Phase 6 — Document the deprecation policy
-
-Add a note to the provider's KDoc:
-- Model name + audit date
-- Where to check for deprecation announcements (provider's release notes URL)
-- Replacement model if/when this one is deprecated (next-best free option)
-
-## Output Format
-
-Every response from this skill must include:
-
-1. **Provider scope**: which provider(s) are being added or modified
-2. **Auth + request shape verification**: copy-pasteable curl command that proves the API works
-3. **Files plan**: every file to create/modify with one-line purpose
-4. **Diff/Files**: the code (Required Output Format from MASTER_PLAN.md)
-5. **Audit dates**: every model name pinned with the date it was last verified working
-6. **Fallback impact**: how the new provider fits into the existing chain (position, role)
-7. **Settings UI impact**: what the user sees in Settings (or "no UI change" if pre-existing)
-8. **Verification plan**: smoke test + unit tests + manual checks
-
-## Output Templates
-
-See `assets/` for:
-- `provider_skeleton.kt.template` — boilerplate for a new VisionProvider/TextProvider
-- `fallback_chain_test_cases.kt.template` — the 5 canonical test cases every gateway must pass
-- `settings_row_template.kt` — Compose row pattern for the Settings screen
-
-## References
-
-- `references/openai-compatible-protocol.md` — Groq, OpenRouter, DeepSeek, Together share this shape
-- `references/google-generate-content.md` — Gemini's idiosyncratic `models/{id}:generateContent` path
-- `references/anthropic-messages.md` — Claude's distinct envelope
-- `references/cloudflare-workers-ai.md` — CF's `/accounts/{id}/ai/run/@cf/{model}` shape
-- `references/error-translation-matrix.md` — HTTP code → ProviderRecoverable/FatalError mapping
+Do NOT show API key values in the UI. Show only "configured ✓" or "key missing".
 
 ## Anti-Patterns (Refuse)
 
-| Anti-pattern | Refusal phrase |
+| Smell | Refusal |
 |---|---|
-| "Just add this one provider, no need for an abstraction" | "Single-provider designs broke us at MT-014. I'll add it as a `VisionProvider` instance — same file count, deprecation-resilient." |
-| "Catch the HTTPException and retry inside the provider" | "Retry is the chain executor's job, not the provider's. The provider translates to a typed error and returns." |
-| "Hardcode the API key for testing" | "BuildConfig field only. The test reads from local.properties just like production." |
-| "Use Map<String, Any> for the chat content list" | "Sealed `Content { Text, ImageUrl }` interface preserves type safety and matches the OpenAI-compatible vision shape." |
-| "Catch on `e.message.contains('404')`" | "Translate to `ProviderRecoverableError.NotFound` so the chain branches on the sealed type, not on string substring." |
-| "Add the new provider to GeminiClient as a fallback method" | "That couples the providers. Add a new sibling provider and let `FallbackChain` orchestrate." |
+| `Map<String, Any>` for provider config | "Each provider gets a `BuildConfig.X_API_KEY` field; settings are typed Kotlin data classes." |
+| String-typed provider IDs | "Use the ProviderId enum so a new provider becomes a compile-time addition." |
+| One adapter modifying multiple clients | "One adapter per provider per modality. Split." |
+| Adapter editing the wrapped client | "Adapters call public methods. If the client needs new public methods, that's a separate MT." |
+| FallbackChain that swallows ProviderFatalError | "Fatal errors must propagate so the user sees a real failure they can fix." |
+| Adding HuggingFace as a vision provider for production | "HF is too slow (~5-15s) for interactive flows. Use it for batch only." |
+| Adding a provider without smoke-test coverage | "Every new provider must have one entry in the ApiHealthSmokeTest opt-in suite." |
+| Hard-coding model names inline | "Model names live in a `private companion object { const val MODEL = … }` so deprecations are 1-line fixes." |
 
-## How To Handle Ambiguity
+## Output Discipline
 
-If the user request is unclear:
+When generating diffs for any provider addition:
 
-- **Unknown auth shape**: ask which header / query param the provider uses. Do not guess.
-- **Unknown model name**: search the provider's release notes for free-tier models. Document the audit date in the model constant comment.
-- **Unknown fallback order**: ask the user, defaulting to fastest-first (Groq → Gemini → OpenRouter → Cloudflare → HF based on latency observations).
+1. **Phase header** — Which provider, which modality
+2. **Files added** — explicit list, must follow the architecture shape above
+3. **Files modified** — explicit list; in 99% of cases this is just `app/build.gradle.kts` + one adapter file
+4. **Verification** — exact commands the human runs:
+   - `./gradlew assembleDebug && ./gradlew test`
+   - `grep "<PROVIDER>_API_KEY" app/build.gradle.kts` (must show exactly 2 occurrences)
+   - `grep "<ProviderClass>" design/ai/gateway/adapters/<Provider>VisionProviderAdapter.kt`
+5. **Rollback** — `git revert <sha>` plus delete the provider's package + adapter file
 
-Never silently invent a provider endpoint URL. Use only URLs that the user provided, that appeared in tool output, or that are well-known canonical addresses for the provider.
+## References (read on demand)
 
-## Cross-References
+- `references/provider-quick-reference.md` — verified models, latency, free-tier limits for 5 providers as of 2026-05
+- `references/error-translation-table.md` — full HTTP code → typed error mapping
+- `references/smoke-test-recipes.md` — copy-paste curl + Kotlin smoke tests per provider
 
-- Master orchestrator: `skills/mawaai-master-orchestrator/SKILL.md`
-- Individual provider integration: `skills/mobile-ai-api-integrator/SKILL.md`
-- Pre-release audit: `skills/production-readiness-auditor/SKILL.md`
-- Strict JSON contracts (for response parsing): `skills/prompt-system-architect/SKILL.md`
+## Assets
+
+- `assets/provider-adapter-template.kt.md` — boilerplate for adding a new provider
+- `assets/fallback-chain-test-template.kt.md` — boilerplate test cases
+
+## Activation Checklist
+
+When this skill activates, immediately verify:
+
+- [ ] Does the gateway package exist (`design/ai/gateway/AiProvider.kt`)? If no, this is MT-036 territory — build the foundation FIRST.
+- [ ] Is the provider already wrapped by an existing client class? If yes, write an Adapter; do NOT rewrite the client.
+- [ ] Is the provider's API key already a BuildConfig field? If no, add it as a one-line change in `app/build.gradle.kts`.
+- [ ] Is the model name pinned to a canonical (non `-latest`, non-deprecated) string? Check the provider's ListModels equivalent.
+- [ ] Is there a smoke test for the provider in `ApiHealthSmokeTest`? If no, add one in the same commit.
+
+If any check fails, STOP and produce a corrective micro-task before doing any new work.

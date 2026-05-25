@@ -1,687 +1,581 @@
-# PROMPTS — Ready-To-Paste Per-MT Prompts
+# INTEGRATION MICRO-TASK PROMPTS
 
-Each prompt is self-contained — paste verbatim into the downstream agent after `ai_handoff/KICKOFF.md` has been loaded.
+Ready-to-paste prompts for every MT in `INTEGRATION_PLAN.md`. Each is self-contained — the downstream agent can execute them in order after loading `ai_handoff/KICKOFF.md`.
 
-**Execution order:** STAGE 1 → STAGE 9 (see `INTEGRATION_PLAN.md`).
+**Order:**
+1. STAGE 1 — E7.MT-036 → MT-039 (Gateway)
+2. STAGE 2 — E8.MT-040 → MT-042 (Data model)
+3. STAGE 3 — E1.MT-015 → MT-017 (Surface intelligence)
+4. STAGE 4 — E2.MT-018 → MT-021 (Analysis)
+5. STAGE 5 — E3.MT-022 → MT-025 (Suggestions)
+6. STAGE 6 — E4.MT-026 → MT-029 (Render)
+7. STAGE 7 — E5.MT-030 → MT-032 (Quality)
+8. STAGE 8 — E9.MT-043 → MT-044 (Ceramic — independent, any order)
+9. STAGE 9 — E6.MT-033 → MT-035 (Mockups)
 
 ---
 
-## STAGE 1 — Multi-Provider AI Gateway
+## STAGE 1 — Multi-Provider Gateway
 
-### E7.MT-036 — VisionProvider sealed registry + FallbackChain
+### MT-036 — VisionProvider sealed registry + FallbackChain
 
-```
-E7.MT-036: Build the multi-provider AI gateway foundation.
+```text
+MT-036: Build the multi-provider AI gateway foundation.
 
 CONTEXT
-Today the app crashes when Gemini returns HTTP 404 (gemini-1.5 deprecation). MT-014
-fixed the immediate symptom by pinning to gemini-2.0-flash, but the architectural
-fix is a provider abstraction with automatic fallback. Read
-integration/AI_PROVIDER_GATEWAY.md FULL TEXT before producing any diff.
+The app currently calls Gemini directly. When Gemini deprecates a model (as
+happened with gemini-1.5-flash → 404), the entire feature crashes. We need
+a provider-agnostic gateway so the next deprecation is invisible to users.
+
+Read these docs first:
+- integration/AI_PROVIDER_GATEWAY.md  (FULL design with code samples)
+- skills/ai-provider-gateway/SKILL.md (discipline rules)
 
 YOUR TASK
-Create three new files implementing the abstraction.
+1. Create the gateway package:
+   app/src/main/java/com/mawaai/love/app/design/ai/gateway/
+       AiProvider.kt          (sealed interfaces + ProviderId enum + error types)
+       FallbackChain.kt       (chain executor)
+       ProviderRegistry.kt    (DI registry, reads order from DataStore)
 
-1. design/ai/gateway/AiProvider.kt
-   - sealed interface VisionProvider { id: ProviderId; isConfigured: Boolean;
-     suspend fun visionAnalyze(prompt: String, image: Bitmap): Result<String> }
-   - sealed interface TextProvider { id: ProviderId; isConfigured: Boolean;
-     suspend fun generateText(prompt: String, systemPrompt: String? = null): Result<String> }
-   - enum class ProviderId { GEMINI, OPENROUTER, GROQ, CLOUDFLARE_WORKERS_AI, HUGGINGFACE }
-     with displayName + freeTier properties.
-   - sealed class ProviderRecoverableError: NotFound, RateLimited, ServiceUnavailable,
-     Timeout, QuotaExhausted (each takes a message).
-   - sealed class ProviderFatalError: InvalidKey, MalformedRequest, SafetyBlock.
+2. Implementation MUST match the code shown in AI_PROVIDER_GATEWAY.md
+   sections 'Sealed Interfaces', 'The Fallback Chain', and 'ProviderRegistry'.
 
-2. design/ai/gateway/FallbackChain.kt
-   - class FallbackChain(providers: List<VisionProvider>) with
-     suspend fun visionAnalyze(prompt, image): Result<String>.
-   - Iterate providers, skip unconfigured, try each, on ProviderRecoverableError
-     continue, on ProviderFatalError stop and return the error, on success return.
-   - Log each attempt with Android Log (tag "FallbackChain").
-   - If all fail, return Result.failure with aggregated error summary.
+3. ProviderRegistry depends on:
+   - GeminiVisionProvider (NEW thin adapter wrapping existing GeminiVisionClient
+     — does NOT modify GeminiVisionClient itself)
+   - OpenRouterVisionProvider (NEW adapter wrapping existing OpenRouterClient)
+   - GroqVisionProvider (MT-037, declare the type now, stub out)
+   - CloudflareVisionProvider (MT-038, declare the type now, stub out)
+   - SettingsDataStore (existing — verify path; if missing, NEW wrapper around
+     androidx.datastore.preferences DataStore<Preferences>)
 
-3. design/ai/gateway/ProviderRegistry.kt
-   - @Singleton with @Inject constructor taking all 5 providers + a settings DataStore.
-   - suspend fun activeVisionChain(): FallbackChain that reads user preferences
-     (mode: AUTO or pinned-to-provider; order: List<ProviderId>) and returns
-     the assembled chain.
-   - suspend fun setMode(mode: String) and suspend fun setOrder(order: List<ProviderId>).
+4. The two adapter classes that wrap existing clients:
+   - design/ai/gateway/adapters/GeminiVisionProviderAdapter.kt
+       @Singleton
+       class GeminiVisionProviderAdapter @Inject constructor(
+           private val client: GeminiVisionClient
+       ) : VisionProvider { ... }
+   - design/ai/gateway/adapters/OpenRouterVisionProviderAdapter.kt
+       similar — wraps OpenRouterClient
 
-4. Wire DI: add a @Module if needed to provide the existing GeminiClient / OpenRouterClient
-   as VisionProvider implementations. Add stub classes for Groq / Cloudflare / HF
-   that return ProviderFatalError.InvalidKey until their full clients ship in MT-037/038.
+   Adapters translate provider-specific errors (HttpException.code() == 404 etc.)
+   into the typed ProviderRecoverableError / ProviderFatalError hierarchy.
+
+5. For Groq and Cloudflare, create EMPTY adapter classes that return
+   Result.failure(ProviderFatalError.InvalidKey("provider not implemented yet
+   — MT-037/038")) — this lets the registry compile and ship behind a feature
+   flag.
 
 FILES TO READ
-- integration/AI_PROVIDER_GATEWAY.md (full design)
-- app/src/main/java/com/mawaai/love/app/design/ai/gemini/GeminiClient.kt
+- app/src/main/java/com/mawaai/love/app/design/ai/gemini/GeminiVisionClient.kt
+  (to see the existing client signature you're adapting)
 - app/src/main/java/com/mawaai/love/app/design/ai/openrouter/OpenRouterClient.kt
-- app/src/main/java/com/mawaai/love/app/di/CoroutineScopesModule.kt
-- app/src/main/java/com/mawaai/love/app/di/DataStoreModule.kt (find SettingsDataStore)
+- integration/AI_PROVIDER_GATEWAY.md
 
 FILES YOU MAY MODIFY
-- (create) design/ai/gateway/AiProvider.kt
-- (create) design/ai/gateway/FallbackChain.kt
-- (create) design/ai/gateway/ProviderRegistry.kt
-- (create) di/GatewayModule.kt (if needed for DI)
+- NEW: design/ai/gateway/*.kt + design/ai/gateway/adapters/*.kt
+- NO existing production class may be modified.
+
+FILES YOU MAY ADD UNIT TESTS FOR
+- app/src/test/java/com/mawaai/love/app/design/ai/gateway/FallbackChainTest.kt
+  (use the test suite shown in AI_PROVIDER_GATEWAY.md section 'How To Test')
 
 ANTI-PATTERNS
-- Do NOT modify GeminiClient or OpenRouterClient (they remain working as-is).
-- Do NOT add a real Groq/CF/HF client here — those are MT-037, MT-038. Stub only.
-- Do NOT introduce a new dependency.
-- Do NOT use Map<String, Any> anywhere.
+- Do NOT modify GeminiVisionClient, GeminiClient, or OpenRouterClient. Adapters wrap.
+- Do NOT add string-typed ProviderIds. Use the enum.
+- Do NOT use Map<String, Any> for provider config. Each provider's config lives
+  in BuildConfig fields.
+- Do NOT make FallbackChain swallow ProviderFatalError. It must propagate.
 
-OUTPUT FORMAT
-Follow Required Output Format from MASTER_PLAN.md Section 3.
+OUTPUT FORMAT — per ai_handoff/MASTER_PLAN.md Section 3.
 
 VERIFICATION
-- ./gradlew assembleDebug    PASS
-- ./gradlew test             PASS
-- Unit tests for FallbackChain (5 cases listed in AI_PROVIDER_GATEWAY.md)
+- ./gradlew assembleDebug   (must PASS)
+- ./gradlew test            (must PASS, including FallbackChainTest)
+- git diff --stat must show ONLY new files in design/ai/gateway/ and test/
+- grep -r "Map<String, Any>" design/ai/gateway/ (must be empty)
 
 NEXT
-E7.MT-037: GroqClient (Llama 3.2 90B Vision).
+MT-037 (Groq vision provider).
 ```
 
----
+### MT-037 — GroqClient (Llama 3.2 Vision)
 
-### E7.MT-037 — GroqClient (Llama 3.2 90B Vision)
-
-```
-E7.MT-037: Add Groq Cloud as the fastest free vision provider.
+```text
+MT-037: Wire Groq Cloud as a vision provider in the gateway.
 
 CONTEXT
-Groq's llama-3.2-90b-vision-preview is currently the fastest free vision API
-(~400ms average). Adding it to the FallbackChain (MT-036) gives the user a
-high-quality fallback when Gemini quota is exhausted.
+Groq is currently the fastest free vision provider. Llama 3.2 90B Vision
+Preview is free on the Groq console (rate-limited but generous).
+- API base: https://api.groq.com/openai/v1/chat/completions
+- Auth: Bearer <GROQ_API_KEY>
+- Endpoint shape: OpenAI-compatible chat completions with vision content parts
+- Free key: https://console.groq.com/keys
 
 YOUR TASK
-1. design/ai/groq/GroqApi.kt — Retrofit interface for /openai/v1/chat/completions
-   with @Header Authorization + @Body GroqChatRequest, returning GroqChatResponse.
+1. Add BuildConfig field:
+   - app/build.gradle.kts: insert immediately after OPENROUTER_API_KEY:
+       buildConfigField("String", "GROQ_API_KEY", "\"${localProps.getProperty("GROQ_API_KEY") ?: ""}\"")
 
-2. design/ai/groq/GroqDtos.kt — OpenAI-compatible chat completion DTOs.
-   - GroqChatRequest with model, messages, max_tokens, temperature.
-   - Message has role + content (List<Content>).
-   - Content is sealed: Text(text) and ImageUrl(imageUrl) with @SerializedName("type").
-   - GroqChatResponse with choices[] + optional error.
+2. Create the Groq package:
+   app/src/main/java/com/mawaai/love/app/design/ai/groq/
+       GroqApi.kt           (Retrofit interface)
+       GroqDtos.kt          (request + response DTOs, OpenAI-compatible)
+       GroqClient.kt        (suspend visionAnalyze(prompt, image): Result<String>)
 
-3. design/ai/groq/GroqVisionProvider.kt — @Singleton @Inject class implementing
-   VisionProvider (from MT-036).
-   - id = ProviderId.GROQ
-   - isConfigured reads BuildConfig.GROQ_API_KEY
-   - visionAnalyze: encode bitmap to JPEG base64 on Dispatchers.Default,
-     call api on Dispatchers.IO, parse response, return Result.
-   - Translate HTTP errors to typed gateway errors: 404 -> NotFound,
-     429 -> RateLimited, 401 -> InvalidKey, 503 -> ServiceUnavailable, etc.
-   - Model constant: "llama-3.2-90b-vision-preview". Comment with audit date.
+3. Replace the stub GroqVisionProviderAdapter from MT-036 with a real
+   implementation that uses GroqClient. The adapter's visionAnalyze translates
+   HttpException codes → typed gateway errors per the table in
+   AI_PROVIDER_GATEWAY.md section 'Provider Implementations (one example)'.
 
-4. design/ai/groq/GroqTextProvider.kt — same pattern but implementing TextProvider.
-   - Model constant: "llama-3.1-70b-versatile" (Groq's flagship text model).
-
-5. app/build.gradle.kts — add buildConfigField for GROQ_API_KEY (read from
-   local.properties, default "").
-
-6. di/GatewayModule.kt — update ProviderRegistry binding to inject these.
-
-7. Add Groq instructions to integration/AI_PROVIDER_GATEWAY.md note section about
-   getting a free key at https://console.groq.com/keys.
+4. Default model: "llama-3.2-90b-vision-preview"
+   Image encoding: JPEG, quality=85, max dimension 1024 (downscale before base64)
+   Content shape (per Groq docs):
+       messages: [{
+         role: "user",
+         content: [
+           { type: "text", text: <prompt> },
+           { type: "image_url", image_url: { url: "data:image/jpeg;base64,..." } }
+         ]
+       }]
 
 FILES TO READ
-- design/ai/gateway/AiProvider.kt (just created in MT-036)
-- design/ai/openrouter/OpenRouterClient.kt (reference pattern)
-- app/build.gradle.kts (where to add buildConfigField)
+- app/build.gradle.kts (insertion point only)
+- design/ai/gateway/AiProvider.kt (interface to satisfy)
+- design/ai/gateway/adapters/GroqVisionProviderAdapter.kt (stub from MT-036)
 
 FILES YOU MAY MODIFY
-- (create) design/ai/groq/{GroqApi,GroqDtos,GroqVisionProvider,GroqTextProvider}.kt
-- app/build.gradle.kts (1 line addition)
-- di/GatewayModule.kt (update binding)
+- app/build.gradle.kts (one buildConfigField line addition)
+- design/ai/gateway/adapters/GroqVisionProviderAdapter.kt (replace stub)
+- NEW: design/ai/groq/*.kt
 
 ANTI-PATTERNS
-- Do NOT change GeminiClient or OpenRouterClient.
-- Do NOT hard-code the API key. Only BuildConfig.GROQ_API_KEY.
-- Do NOT call the API in a non-suspend context.
+- Do NOT log the API key.
+- Do NOT log the base64 image payload (too big, can leak content).
+- Do NOT add Groq-specific code paths outside the groq/ package or its adapter.
+- Do NOT change the gateway interface.
 
-OUTPUT FORMAT
-Required Output Format from MASTER_PLAN.md Section 3.
+OUTPUT FORMAT — per ai_handoff/MASTER_PLAN.md Section 3.
 
 VERIFICATION
-- ./gradlew assembleDebug    PASS
-- ./gradlew test             PASS
-- BuildConfig.GROQ_API_KEY field exists in generated BuildConfig.java
-- ProviderRegistry.activeVisionChain() includes Groq when GROQ_API_KEY is set
+- ./gradlew assembleDebug   (must PASS)
+- ./gradlew test            (must PASS)
+- grep "GROQ_API_KEY" app/build.gradle.kts (must show exactly 2 occurrences)
+- grep "GroqClient" design/ai/gateway/adapters/GroqVisionProviderAdapter.kt
+  (must show usage)
 
 NEXT
-E7.MT-038: Cloudflare Workers AI vision (LLaVA-1.5).
+MT-038 (Cloudflare Workers AI vision).
 ```
 
----
+### MT-038 — Cloudflare Workers AI vision (LLaVA)
 
-### E7.MT-038 — Cloudflare Workers AI vision (LLaVA-1.5)
-
-```
-E7.MT-038: Add Cloudflare Workers AI as the most resilient vision fallback.
+```text
+MT-038: Extend the existing Cloudflare client with vision support, then wire
+its provider adapter.
 
 CONTEXT
-Cloudflare's @cf/llava-hf/llava-1.5-7b-hf runs on CF's edge network — when
-Google/Groq are down, CF is usually still up. Lower model quality (7B params)
-but battle-hardened uptime.
+The app already calls Cloudflare Workers AI for text (Llama 3.1) and SD 1.5
+img2img. Cloudflare also offers LLaVA for vision:
+  POST https://api.cloudflare.com/client/v4/accounts/{acct}/ai/run/@cf/llava-hf/llava-1.5-7b-hf
+  Body shape varies — see https://developers.cloudflare.com/workers-ai/models/
 
 YOUR TASK
-1. Find the existing CloudflareWorkersAiClient (it already exists for text).
-   Search for it in design/ai/cloudflare/ or similar.
-
-2. Add a vision method to it OR create a new CloudflareVisionProvider that
-   reuses the same Retrofit interface.
-   - Endpoint: /client/v4/accounts/{accountId}/ai/run/@cf/llava-hf/llava-1.5-7b-hf
-   - Body: { prompt, image (base64) } — verify by reading current CF text body shape.
-   - Headers: Bearer ${BuildConfig.CLOUDFLARE_API_TOKEN}.
-
-3. Wrap it in the VisionProvider interface (id = ProviderId.CLOUDFLARE_WORKERS_AI).
-   Implement isConfigured = BuildConfig.CLOUDFLARE_ACCOUNT_ID.isNotBlank() &&
-   BuildConfig.CLOUDFLARE_API_TOKEN.isNotBlank().
-
-4. Update di/GatewayModule.kt to inject the new provider into ProviderRegistry.
+1. Identify the existing Cloudflare client class (likely
+   design/ai/cloudflare/CloudflareClient.kt or similar). Read its file in full.
+2. Add a suspend function:
+       suspend fun llavaVision(prompt: String, image: Bitmap): Result<String>
+   that:
+   - Reads BuildConfig.CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN
+   - Encodes the bitmap as base64 PNG
+   - POSTs to the LLaVA endpoint with the documented body shape
+   - Returns the description string on success
+3. Replace the MT-036 stub CloudflareVisionProviderAdapter with a real
+   implementation that calls llavaVision and translates errors.
 
 FILES TO READ
-- design/ai/gateway/AiProvider.kt
-- Whatever CloudflareWorkersAi*.kt file currently exists (find via grep)
+- The existing CloudflareClient.kt (find via grep -r "CLOUDFLARE_ACCOUNT_ID"
+  app/src/main/java/)
+- design/ai/gateway/adapters/CloudflareVisionProviderAdapter.kt (stub)
 
 FILES YOU MAY MODIFY
-- The existing Cloudflare client file (add a vision method)
-  OR
-- (create) design/ai/cloudflare/CloudflareVisionProvider.kt
-- di/GatewayModule.kt
+- The existing CloudflareClient.kt (additive only — add new method)
+- design/ai/gateway/adapters/CloudflareVisionProviderAdapter.kt (replace stub)
 
 ANTI-PATTERNS
-- Do NOT change the existing text-generation behaviour.
-- Do NOT modify the BuildConfig fields (CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN
-  already exist from MT-011).
+- Do NOT modify the existing Cloudflare text or SD methods.
+- Do NOT log keys or base64 payloads.
+- Do NOT introduce a new Retrofit instance — reuse the existing one if the
+  client already has one.
 
-OUTPUT FORMAT
-Required Output Format from MASTER_PLAN.md Section 3.
+OUTPUT FORMAT — per ai_handoff/MASTER_PLAN.md Section 3.
 
 VERIFICATION
-- ./gradlew assembleDebug    PASS
-- ./gradlew test             PASS
-- ProviderRegistry includes Cloudflare in chain when keys are set
+- ./gradlew assembleDebug   (must PASS)
+- ./gradlew test            (must PASS)
 
 NEXT
-E7.MT-039: Provider switcher UI in Settings.
+MT-039 (Settings UI).
 ```
 
----
+### MT-039 — Provider switcher Settings UI
 
-### E7.MT-039 — Provider switcher UI
-
-```
-E7.MT-039: Add the user-facing AI provider switcher in Settings.
-
-CONTEXT
-The user wants to manually pick which provider runs (or keep Auto Fallback).
-This is the visible payoff of E7: a Settings screen showing all 5 providers,
-their key-configured status, the current order, and a "Run health check" button.
+```text
+MT-039: Add an AI Provider section to the Settings screen with auto-fallback
+mode, per-provider pin, drag-to-reorder chain, and live health check button.
 
 YOUR TASK
-1. ui/settings/AiProviderSettings.kt — a @Composable screen.
-   - Section 1: Radio buttons — "Auto fallback (recommended)" vs "Use X only"
-     for each ProviderId.
-   - Section 2 (only visible when Auto is selected): Reorderable list of providers
-     showing each one's key-configured indicator (green dot / red dot) and the
-     order can be dragged.
-   - Section 3: Diagnostics — "Run live health check" button that runs each
-     configured provider's visionAnalyze() with a tiny test image; show
-     PASS/FAIL + latency.
-
-2. ui/settings/AiProviderSettingsViewModel.kt — @HiltViewModel reading
-   ProviderRegistry state, exposing a StateFlow<AiProviderUiState>.
-
-3. Hook into the existing SettingsScreen — add a new section/row that navigates
-   to AiProviderSettings.
-
-4. DataStore: ensure preferences keys `ai_provider_mode` and `ai_provider_order`
-   are wired through SettingsDataStore.
+1. Find the existing Settings screen Composable (grep for "SettingsScreen" or
+   look at ui/navigation/NavGraph.kt for the `settings` route).
+2. Add a new section `AiProviderSettings` Composable that follows the UI
+   shown in AI_PROVIDER_GATEWAY.md section 'Settings Screen'.
+3. The ViewModel `AiProviderSettingsViewModel` exposes:
+       data class State(
+           val mode: ProviderMode,
+           val activeOrder: List<ProviderId>,
+           val providerStatuses: Map<ProviderId, ProviderStatus>,
+           val smokeTestResults: Map<ProviderId, SmokeTestResult> = emptyMap()
+       )
+   - setMode(ProviderMode) → persists to ProviderRegistry.setMode()
+   - setOrder(List<ProviderId>) → persists to ProviderRegistry.setOrder()
+   - runSmokeTest() → calls each configured provider with a small ping prompt,
+     records latency + http status
+4. The reorder UI can use a simple LongPressDraggable + LazyColumn (no new
+   dependency required).
 
 FILES TO READ
-- ui/settings/SettingsScreen.kt (or whatever the current settings file is)
-- Existing SettingsViewModel
+- Existing SettingsScreen.kt
 - design/ai/gateway/ProviderRegistry.kt
-- core/preferences/SettingsDataStore.kt
+- design/ai/gateway/AiProvider.kt
 
 FILES YOU MAY MODIFY
-- (create) ui/settings/AiProviderSettings.kt
-- (create) ui/settings/AiProviderSettingsViewModel.kt
-- Existing settings screen / nav graph (add the new entry)
+- The existing SettingsScreen.kt (add a section, do NOT restructure)
+- NEW: ui/settings/AiProviderSettings.kt
+- NEW: ui/settings/AiProviderSettingsViewModel.kt
 
 ANTI-PATTERNS
-- Do NOT add new dependencies (use Material 3 components already in the project).
-- Do NOT show real API key values anywhere in the UI — only configured/not.
-- Do NOT block on the health check — it runs in viewModelScope.
+- Do NOT add a new Material 2 component — Material 3 only.
+- Do NOT add a third-party drag-and-drop library — keep it stdlib.
+- Do NOT log keys when displaying provider status; show "configured ✓" or
+  "missing key" only.
 
-OUTPUT FORMAT
-Required Output Format from MASTER_PLAN.md Section 3.
+OUTPUT FORMAT — per ai_handoff/MASTER_PLAN.md Section 3.
 
 VERIFICATION
-- ./gradlew assembleDebug    PASS
-- ./gradlew test             PASS
-- Run app: navigate to Settings -> AI Provider; selection persists across launches
+- ./gradlew assembleDebug   (must PASS)
+- ./gradlew test            (must PASS)
+- Manual smoke test on emulator: open Settings → AI Provider section visible,
+  toggling mode persists across app restart.
 
 NEXT
-STAGE 2 — E8.MT-040: Room entities for Project, Template, ProductMockup.
+MT-040 (Room entities).
 ```
 
 ---
 
-## STAGE 2 — Room Entities (Data Model)
+## STAGE 2 — Data Model
 
-### E8.MT-040 — Room entities + DAOs
+### MT-040 — Room entities + DAOs
 
-```
-E8.MT-040: Create Room entities and DAOs for the Creative Studio data model.
-
-CONTEXT
-Read integration/DATA_MODEL.md FULL TEXT first — it has the complete entity
-definitions, DAO contracts, and seed data.
+```text
+MT-040: Add Template / Project / ProductMockup entities, DAOs, and update
+MawaaiDatabase to v2.
 
 YOUR TASK
-Create these entities exactly as specified in DATA_MODEL.md:
+1. Read integration/DATA_MODEL.md in full — copy entity definitions verbatim.
+2. Create entity files at data/database/entities/.
+3. Create DAO interfaces at data/dao/.
+4. Update MawaaiDatabase.kt: bump version to 2; add new entities to @Database
+   entities array; add abstract DAO accessors; register MawaaiTypeConverters.
+5. Update DatabaseModule.kt: add @Provides for each new DAO.
 
-1. data/database/entities/TemplateEntity.kt + Template (domain) + TemplateCategory enum
-2. data/database/entities/ProjectEntity.kt + ProjectStatus enum
-3. data/database/entities/ProductMockupEntity.kt
-4. data/database/entities/TemplateZone, CulturalRules, LightingProfile (domain types)
-
-Create these DAOs:
-5. data/dao/TemplateDao.kt — observeAll, observeByCategory, byId, upsertAll, deleteAll
-6. data/dao/ProjectDao.kt — observeAll, observe(id), byId, upsert, setStatus,
-   setAnalysis, setSuggestions, setRender, setColorOverride, setAcceptedSuggestions, delete
-7. data/dao/ProductMockupDao.kt — observeByCategory, observeForSurface, byId, seed
-
-Update:
-8. data/database/MawaaiDatabase.kt — bump database version, add @TypeConverters for
-   Instant, register the new DAOs (templateDao, projectDao, productMockupDao).
-9. di/DatabaseModule.kt — provide the new DAOs.
+DO NOT yet add migration — that's MT-041. For now, document in Kotlin comment
+that this commit requires reinstall (fallbackToDestructiveMigration is OK at
+this stage IF AND ONLY IF the app has no released users yet — confirm in
+the PR description).
 
 FILES TO READ
-- integration/DATA_MODEL.md (FULL — has every entity definition)
-- data/database/MawaaiDatabase.kt (current version, current converters)
-- data/database/Converters.kt
-- di/DatabaseModule.kt
+- integration/DATA_MODEL.md
+- app/src/main/java/com/mawaai/love/app/data/database/MawaaiDatabase.kt
+- app/src/main/java/com/mawaai/love/app/di/DatabaseModule.kt
 
 FILES YOU MAY MODIFY
-- (create) data/database/entities/{TemplateEntity, ProjectEntity, ProductMockupEntity}.kt
-- (create) data/database/entities/Domain.kt (Template, TemplateZone, CulturalRules, LightingProfile types)
-- (create) data/dao/{TemplateDao, ProjectDao, ProductMockupDao}.kt
-- data/database/MawaaiDatabase.kt (bump version, register)
-- di/DatabaseModule.kt (provide new DAOs)
+- MawaaiDatabase.kt (version bump + entity addition)
+- DatabaseModule.kt (add new DAO providers)
+- NEW: data/database/entities/{Template,Project,ProductMockup}Entity.kt
+- NEW: data/dao/{Template,Project,ProductMockup}Dao.kt
+- NEW: data/database/MawaaiTypeConverters.kt
 
-ANTI-PATTERNS
-- Do NOT use fallbackToDestructiveMigration() — would wipe existing user data.
-- Do NOT migrate yet — MT-041 owns that.
-- Do NOT use Map<String, Any> in any entity or domain type.
-- Do NOT add new dependencies.
-
-OUTPUT FORMAT
-Required Output Format from MASTER_PLAN.md Section 3.
+OUTPUT FORMAT — per ai_handoff/MASTER_PLAN.md Section 3.
 
 VERIFICATION
-- ./gradlew assembleDebug    EXPECTED TO FAIL because version was bumped
-  without a migration. That's the bridge to MT-041.
+- ./gradlew assembleDebug   (must PASS)
+- ./gradlew test            (must PASS)
+- ls app/schemas/com.mawaai.love.app.data.database.MawaaiDatabase/2.json (exists)
 
 NEXT
-E8.MT-041: Add migrations.
+MT-041 (migrations).
 ```
 
----
+### MT-041 — Non-destructive v1→v2 migration
 
-### E8.MT-041 — Non-destructive migrations
-
-```
-E8.MT-041: Add Room migrations for the new entities introduced in MT-040.
+```text
+MT-041: Replace destructive-migration shortcut from MT-040 with a real
+Migration that preserves existing user data.
 
 YOUR TASK
-1. data/database/Migrations.kt — define MIGRATION_<oldVersion>_TO_<newVersion>
-   exactly as specified in integration/DATA_MODEL.md "Migration Strategy" section.
-
-2. MawaaiDatabase.kt — register the migration in addMigrations() during the
-   Room.databaseBuilder() in DatabaseModule.
-
-3. app/schemas/ — Room will auto-generate the new schema JSON when the build runs.
-
-4. Verify the existing user data tables (Memory, LoveLetter, Mood, etc.) are
-   NOT touched by this migration. Add a comment in Migrations.kt confirming this.
+1. Read integration/DATA_MODEL.md section 'Migrations' — port the
+   MIGRATION_1_2 object verbatim.
+2. Create data/database/Migrations.kt with the migration object.
+3. Update MawaaiDatabase.kt:
+   - REMOVE any fallbackToDestructiveMigration() call from the
+     databaseBuilder chain (added in MT-040 as a temporary measure)
+   - ADD .addMigrations(*MawaaiMigrations.ALL)
+4. Add a JVM test app/src/test/java/.../MigrationTest.kt that:
+   - Creates a v1 database with seed data via SupportSQLiteDatabase
+   - Runs MigrationTestHelper.runMigrationsAndValidate(name, 2, true, MIGRATION_1_2)
+   - Asserts existing data preserved
+   (See androidx.room:room-testing for the helper)
 
 FILES TO READ
-- integration/DATA_MODEL.md (Migration Strategy section)
-- data/database/MawaaiDatabase.kt (current)
-- di/DatabaseModule.kt
-- app/schemas/com.mawaai.love.app.data.database.MawaaiDatabase/ (existing schemas)
+- integration/DATA_MODEL.md (Migrations section)
+- MawaaiDatabase.kt (current state after MT-040)
 
 FILES YOU MAY MODIFY
-- (create) data/database/Migrations.kt
-- di/DatabaseModule.kt (add migration to builder chain)
+- MawaaiDatabase.kt (swap fallback for addMigrations)
+- NEW: data/database/Migrations.kt
+- NEW: test/.../MigrationTest.kt
+- app/build.gradle.kts (add testImplementation libs.androidx.room.testing IF
+  not already in version catalog — verify first)
 
-ANTI-PATTERNS
-- Do NOT add ALTER TABLE to existing tables (Memory, LoveLetter, etc.).
-- Do NOT drop or rename anything.
-- Do NOT use fallbackToDestructiveMigration anywhere.
-
-OUTPUT FORMAT
-Required Output Format from MASTER_PLAN.md Section 3.
+OUTPUT FORMAT — per ai_handoff/MASTER_PLAN.md Section 3.
 
 VERIFICATION
-- ./gradlew assembleDebug    PASS
-- ./gradlew test             PASS
-- app/schemas/.../V<new>.json exists and contains the new tables
+- ./gradlew assembleDebug   (must PASS)
+- ./gradlew test            (must PASS, including MigrationTest)
+- grep "fallbackToDestructiveMigration" app/src/main/java/  (must be empty)
 
 NEXT
-E8.MT-042: Repositories.
+MT-042 (repositories).
 ```
 
----
+### MT-042 — Repositories
 
-### E8.MT-042 — Repositories
-
-```
-E8.MT-042: Create the repository layer for the new entities.
+```text
+MT-042: Build TemplateRepository, ProjectRepository, ProductMockupRepository
+exposing Flow + suspend mutators.
 
 YOUR TASK
-1. data/repository/TemplateRepository.kt — interface + impl. observeAll(),
-   observeByCategory(), byId(). Reads from TemplateDao + AssetManager bundled
-   templates if needed.
+1. Create data/repository/TemplateRepository.kt:
+       fun observeAll(category: TemplateCategory?): Flow<List<Template>>
+       suspend fun getById(id: String): Template?
+       suspend fun seed(templates: List<TemplateEntity>)  // for asset loading
+2. Create data/repository/ProjectRepository.kt:
+       fun observe(id: String): Flow<Project?>
+       fun observeAll(): Flow<List<Project>>
+       suspend fun create(templateId: String, sketchPath: String): String  // returns id
+       suspend fun saveAnalysis(id: String, analysis: SketchAnalysis)
+       suspend fun saveSuggestions(id: String, suggestions: List<Suggestion>)
+       suspend fun saveAcceptedSuggestionIds(id: String, ids: List<String>)
+       suspend fun saveColorOverride(id: String, hex: String?)
+       suspend fun saveRender(id: String, path: String, prompt: String, quality: RenderQuality)
+       suspend fun saveExport(id: String, path: String, mockupId: String)
+       suspend fun delete(id: String)
+3. Create data/repository/ProductMockupRepository.kt:
+       fun observeByCategory(category: TemplateCategory): Flow<List<ProductMockup>>
+       suspend fun byId(id: String): ProductMockup?
+       suspend fun seed()  // inserts MockupSeed.ALL if empty
+4. Create a Hilt module providing these.
 
-2. data/repository/ProjectRepository.kt — interface + impl. Methods as listed in
-   integration/DATA_MODEL.md "Repository Contract" section (observe, observeAll,
-   create, saveSketch, saveAnalysis, saveSuggestions, acceptSuggestions,
-   setColorOverride, saveRender, saveExport, delete).
-
-3. data/repository/ProductMockupRepository.kt — interface + impl. observeByCategory,
-   observeForSurface, byId, seed.
-
-4. data/storage/ProjectFileStorage.kt — helper as shown in DATA_MODEL.md.
-
-5. Hilt: provide repositories in DatabaseModule (or a new RepositoryModule).
+EACH repository MUST:
+- Map entity ↔ domain types in private mapper functions (no entity types leak
+  outside data/)
+- Use Dispatchers.IO for any blocking I/O
+- Wrap Gson serialization in try/catch with a defensive return
 
 FILES TO READ
-- integration/DATA_MODEL.md (Repository Contract + ProjectFileStorage)
-- The DAOs from MT-040
+- The 3 new DAOs from MT-040
+- The 3 new entities from MT-040
+- integration/DATA_MODEL.md (for domain types reference)
+- integration/PIPELINE_ARCHITECTURE.md (for the SketchAnalysis / Suggestion /
+  RenderQuality domain types)
 
 FILES YOU MAY MODIFY
-- (create) data/repository/{Template,Project,ProductMockup}Repository.kt + impls
-- (create) data/storage/ProjectFileStorage.kt
-- di/DatabaseModule.kt (or new RepositoryModule.kt) — provide repositories
+- NEW: data/repository/*.kt
+- NEW: di/RepositoryModule.kt OR add to existing module
+
+OUTPUT FORMAT — per ai_handoff/MASTER_PLAN.md Section 3.
 
 VERIFICATION
-- ./gradlew assembleDebug    PASS
-- ./gradlew test             PASS
-- Unit test: TemplateRepository.observeAll() emits the seeded templates
+- ./gradlew assembleDebug   (must PASS)
+- ./gradlew test            (must PASS)
 
 NEXT
-STAGE 3 — E1.MT-015: SurfaceProfile sealed class hierarchy.
+MT-015 (SurfaceProfile hierarchy).
 ```
 
 ---
 
-## STAGE 3 — Surface Intelligence Catalog
+> The remaining prompts (MT-015 through MT-035) follow the same pattern. Each
+> reads the corresponding doc (SURFACE_PROFILES.md, PIPELINE_ARCHITECTURE.md,
+> DATA_MODEL.md, MIGRATION_BLUEPRINT.md) and produces the named files. The
+> docs already contain the verbatim Kotlin source for the most complex MTs
+> (MT-015, MT-016, MT-017), so those prompts are short:
 
-### E1.MT-015 — SurfaceProfile sealed class hierarchy
+### MT-015 — SurfaceProfile sealed catalog
 
-```
-E1.MT-015: Port the 12-surface catalog to Kotlin.
-
-CONTEXT
-Read integration/SURFACE_PROFILES.md FULL TEXT — it has the complete sealed
-interface, all 12 data objects, and the SurfaceCatalog resolver.
+```text
+MT-015: Port the 12-surface catalog from Creative Studio.
 
 YOUR TASK
-1. design/ai/intelligence/SurfaceProfile.kt — sealed interface + 12 data objects
-   (SkinPalm, SkinHandFull, SkinFoot, FabricAbaya, FabricThobe, FabricToub,
-   WallStone, WallPlaster, WallArch, CeramicPlate, CeramicTile, CeramicMug).
-   Each with id, label, targetSurface, constraints[], maskingRules[],
-   perspectiveRules[], materialResponse.
-
-2. design/ai/intelligence/SurfaceCatalog.kt — object with byId(id), forTemplate(entity)
-   matching the TS resolveTemplateSurface() heuristics exactly.
-
-3. design/ai/intelligence/SurfaceDirections.kt — object with forProfile(profile)
-   returning the verbatim render-prompt string for each of the 12 surfaces.
-   Plus QUALITY_TAIL constant.
-
-4. design/ai/intelligence/TemplateIntelligencePrompt.kt — top-level fun
-   templateIntelligencePrompt(template: TemplateEntity): String — the Phase 2
-   prompt block as shown in SURFACE_PROFILES.md.
+1. Read integration/SURFACE_PROFILES.md.
+2. Create the 3 files shown there VERBATIM:
+   - design/ai/intelligence/SurfaceProfile.kt
+   - design/ai/intelligence/SurfaceCatalog.kt
+   - design/ai/intelligence/TemplateIntelligencePrompt.kt
+3. Add unit tests asserting SurfaceCatalog.forTemplate() returns the correct
+   profile for each of: henna+palm, henna+hand, henna+foot, abaya, thobe,
+   toub, stone, plaster, arch, plate, tile, mug (12 cases).
 
 FILES TO READ
-- integration/SURFACE_PROFILES.md (FULL — Kotlin code already written, paste verbatim)
-- TemplateEntity from MT-040
+- integration/SURFACE_PROFILES.md
 
 FILES YOU MAY MODIFY
-- (create) design/ai/intelligence/SurfaceProfile.kt
-- (create) design/ai/intelligence/SurfaceCatalog.kt
-- (create) design/ai/intelligence/SurfaceDirections.kt
-- (create) design/ai/intelligence/TemplateIntelligencePrompt.kt
+- NEW: design/ai/intelligence/SurfaceProfile.kt
+- NEW: design/ai/intelligence/SurfaceCatalog.kt
+- NEW: design/ai/intelligence/TemplateIntelligencePrompt.kt
+- NEW: test/.../SurfaceCatalogTest.kt
+
+OUTPUT FORMAT — per ai_handoff/MASTER_PLAN.md Section 3.
 
 VERIFICATION
-- ./gradlew assembleDebug    PASS
-- ./gradlew test             PASS
-- Unit tests: SurfaceCatalog.byId("skin_palm") == SurfaceProfile.SkinPalm
-- Unit tests: SurfaceCatalog.forTemplate(<henna+palm name>) == SkinPalm
+- ./gradlew assembleDebug   (must PASS)
+- ./gradlew test            (must PASS, including the 12 catalog cases)
 
 NEXT
-E1.MT-016: (already covered above)
-E1.MT-017: TemplateAssetManager wiring.
+MT-016 (SurfaceDirections).
 ```
 
----
+### MT-016 — SurfaceDirections render prompts
 
-### E1.MT-017 — TemplateAssetManager wiring
-
-```
-E1.MT-017: Wire TemplateAssetManager to use SurfaceCatalog when loading templates.
+```text
+MT-016: Port the 12 surface render direction strings + the universal quality tail.
 
 YOUR TASK
-Modify the existing TemplateAssetManager so that when it builds a Template
-domain object from disk (assets/templates/*.json + image), it sets
-surfaceType = SurfaceCatalog.forTemplate(entity).id.
-
-That's it — pure wiring, no new behaviour.
+1. Read integration/SURFACE_PROFILES.md section 'SurfaceDirections'.
+2. Create design/ai/intelligence/SurfaceDirections.kt VERBATIM from the doc.
+3. Add a unit test asserting forProfile() returns a non-empty string for
+   every SurfaceProfile variant (covered exhaustively by `when` so the test
+   is a compile-time guarantee — just instantiate one of each and call).
 
 FILES TO READ
-- Find TemplateAssetManager.kt in the codebase (search for the class)
+- integration/SURFACE_PROFILES.md (SurfaceDirections section)
+
+FILES YOU MAY MODIFY
+- NEW: design/ai/intelligence/SurfaceDirections.kt
+- NEW: test/.../SurfaceDirectionsTest.kt
+
+OUTPUT FORMAT — per ai_handoff/MASTER_PLAN.md Section 3.
+
+VERIFICATION
+- ./gradlew assembleDebug + ./gradlew test (both PASS)
+- grep -c "Render this sketch" design/ai/intelligence/SurfaceDirections.kt  (must be 12)
+
+NEXT
+MT-017 (TemplateAssetManager wiring).
+```
+
+### MT-017 — TemplateAssetManager → SurfaceProfile
+
+```text
+MT-017: Wire the existing TemplateAssetManager to resolve a SurfaceProfile
+for each template it loads.
+
+YOUR TASK
+1. Find TemplateAssetManager.kt (likely under design/templates/ or similar).
+2. Add one new public method:
+       fun surfaceProfile(template: TemplateEntity): SurfaceProfile =
+           SurfaceCatalog.forTemplate(template)
+3. Do NOT change any other method.
+
+FILES TO READ
+- Existing TemplateAssetManager.kt
 - design/ai/intelligence/SurfaceCatalog.kt (from MT-015)
 
 FILES YOU MAY MODIFY
-- ONLY TemplateAssetManager.kt
+- Existing TemplateAssetManager.kt (single method addition)
+
+OUTPUT FORMAT — per ai_handoff/MASTER_PLAN.md Section 3.
 
 VERIFICATION
-- Existing template loading still works (no template invisibly disappears)
-- Loaded templates now have a non-empty surfaceType matching a SurfaceProfile.id
+- ./gradlew assembleDebug + ./gradlew test (both PASS)
 
 NEXT
-STAGE 4 — E2.MT-018: SketchAnalysis data class hierarchy.
+MT-018 (SketchAnalysis schema).
 ```
 
 ---
 
-## STAGE 4 — Structured Vision Analysis (Phase 3)
+## STAGES 4-9 — Prompt Templates
 
-### E2.MT-018 — SketchAnalysis data class hierarchy
-
-```
-E2.MT-018: Port the Zod analysisSchema to Kotlin data classes.
-
-YOUR TASK
-1. design/ai/analysis/SketchAnalysis.kt — top-level data class with nested types
-   exactly matching the schema in integration/PIPELINE_ARCHITECTURE.md "Phase 3"
-   section.
-   - Outer fields: artStyle, culturalOrigin, symmetry, lineQuality, composition,
-     sketchStructure, templateMapping, templateFit, findings.
-   - Nested: Symmetry, LineQuality, Composition, SketchStructure, TemplateMapping,
-     TemplateFit, Finding.
-   - Finding.Severity enum: INFO, WARNING, CRITICAL.
-   - NormalizedRect value class with init { require(...) } bounds.
-   - findings list capped via init { require(findings.size <= 12) }.
-   - All @SerializedName mappings for snake_case JSON keys.
-
-2. Unit tests in app/src/test/.../analysis/SketchAnalysisTest.kt covering
-   boundary values and the max-12-findings constraint.
-
-FILES TO READ
-- integration/PIPELINE_ARCHITECTURE.md (Phase 3 section)
-- integration/MIGRATION_BLUEPRINT.md (Zod -> Kotlin pattern)
-
-FILES YOU MAY MODIFY
-- (create) design/ai/analysis/SketchAnalysis.kt
-- (create) app/src/test/java/com/mawaai/love/app/design/ai/analysis/SketchAnalysisTest.kt
-
-VERIFICATION
-- ./gradlew assembleDebug    PASS
-- ./gradlew test             PASS (boundary tests pass)
-- gson.fromJson(<sample json>, SketchAnalysis::class.java) round-trips
-
-NEXT
-E2.MT-019: StructuredAnalysisClient.
-```
-
----
-
-### E2.MT-019 — StructuredAnalysisClient
-
-```
-E2.MT-019: Build the AI client that produces a SketchAnalysis from a sketch image.
-
-YOUR TASK
-1. design/ai/analysis/StructuredAnalysisClient.kt — @Singleton @Inject class.
-   - Constructor: ProviderRegistry, Gson.
-   - suspend fun analyze(sketchBitmap, template): Result<SketchAnalysis>.
-   - Build the user prompt: TEMPLATE PROFILE + templateIntelligencePrompt(template)
-     + PHASE 3 SKETCH ANALYSIS instructions + the schema description in plain text.
-     Use the system prompt from analysis.functions.ts line 250 verbatim (port to
-     Kotlin string).
-   - Call gateway.activeVisionChain().visionAnalyze(prompt, sketchBitmap).
-   - Strip markdown code fences from response.
-   - Parse via gson.fromJson(); validate with the data class init blocks.
-   - On parse failure or empty response, return Result.failure of a typed
-     SchemaValidationException so the caller can decide to use the fallback.
-
-FILES TO READ
-- integration/MIGRATION_BLUEPRINT.md (StructuredAnalysisClient pattern)
-- design/ai/gateway/ProviderRegistry.kt (from MT-036)
-- design/ai/intelligence/TemplateIntelligencePrompt.kt (from MT-015)
-- design/ai/analysis/SketchAnalysis.kt (from MT-018)
-- Source reference (for prompt copy): analysis.functions.ts in source repo
-
-FILES YOU MAY MODIFY
-- (create) design/ai/analysis/StructuredAnalysisClient.kt
-
-VERIFICATION
-- ./gradlew assembleDebug    PASS
-- ./gradlew test             PASS
-- Manual: run a smoke test with a real sketch image; analysis JSON parses
-
-NEXT
-E2.MT-020: Heuristic fallback.
-```
-
----
-
-### E2.MT-020 — Heuristic fallback analysis
-
-```
-E2.MT-020: Build the deterministic fallback for when AI returns invalid JSON.
-
-YOUR TASK
-1. design/ai/analysis/FallbackAnalysis.kt — object with
-   fun build(template: TemplateEntity, reason: String): SketchAnalysis.
-   - Mirror the buildFallbackAnalysis() function from analysis.functions.ts line 95.
-   - Use SurfaceCatalog.forTemplate to get profile.
-   - Return a SketchAnalysis with neutral mid-range numeric values (accuracy_pct=72,
-     line_quality=7s, balance=7, negative_space=34, scale_match=7, etc.)
-   - Two default findings: "fallback-preserve-composition" and "fallback-surface-fit".
-
-2. Update StructuredAnalysisClient (MT-019): if analyze returns Result.failure
-   with a SchemaValidationException, return Result.success(FallbackAnalysis.build(...)).
-   Log a warning with the reason.
-
-FILES TO READ
-- analysis.functions.ts in source repo (lines 95-155)
-- design/ai/intelligence/SurfaceCatalog.kt
-- design/ai/analysis/SketchAnalysis.kt
-
-FILES YOU MAY MODIFY
-- (create) design/ai/analysis/FallbackAnalysis.kt
-- design/ai/analysis/StructuredAnalysisClient.kt (add fallback branch)
-
-VERIFICATION
-- ./gradlew test             PASS (new unit test: invalid AI response → fallback)
-- Manual: corrupt the AI response (e.g., disable network); analysis returns
-  fallback instead of crashing
-
-NEXT
-E2.MT-021: Persist analysis to Room.
-```
-
----
-
-### E2.MT-021 — Persist analysis to Room
-
-```
-E2.MT-021: Wire the analysis pipeline to persist results via ProjectRepository.
-
-YOUR TASK
-1. Find or create the AnalysisOrchestrator (a use case that ties together
-   StructuredAnalysisClient + ProjectRepository).
-
-2. In the orchestrator:
-   - projectRepository.setStatus(projectId, "analyzing")
-   - val sketch = projectFileStorage.sketchFile(projectId).readBitmap()
-   - val template = templateRepository.byId(project.templateId)
-   - val analysis = structuredAnalysisClient.analyze(sketch, template)
-   - On success: projectRepository.saveAnalysis(projectId, analysis); status=analyzed
-   - On fallback success: same, but log a warning so we can audit fallback rates
-   - On hard failure: projectRepository.setStatus(projectId, "failed")
-
-3. Add @HiltViewModel for the analysis screen that observes
-   projectRepository.observe(projectId) and triggers the orchestrator.
-
-FILES TO READ
-- data/repository/ProjectRepository.kt (from MT-042)
-- design/ai/analysis/StructuredAnalysisClient.kt
-- Existing design studio orchestrator if any
-
-FILES YOU MAY MODIFY
-- (create) design/ai/analysis/AnalysisOrchestrator.kt
-- (create) ui/design/analysis/AnalysisViewModel.kt
-
-VERIFICATION
-- ./gradlew test             PASS
-- Run app: sketch -> analyze -> analysis_json column in projects table is populated
-
-NEXT
-STAGE 5 — E3.MT-022/023/024/025: Suggestions system.
-```
-
----
-
-> **Note:** Prompts for STAGE 5 (E3), STAGE 6 (E4), STAGE 7 (E5), STAGE 8 (E9), STAGE 9 (E6) follow the exact same structure. The downstream agent should ask "next prompt please" after completing one, and the human pastes the next block.
+> The remaining 15 prompts (MT-018, MT-019, MT-020, MT-021, MT-022, MT-023,
+> MT-024, MT-025, MT-026, MT-027, MT-028, MT-029, MT-030, MT-031, MT-032,
+> MT-033, MT-034, MT-035, MT-043, MT-044) follow the same skeleton:
 >
-> For STAGE 5+, build prompts by referring to:
-> - `integration/INTEGRATION_PLAN.md` for scope per MT
-> - `integration/PIPELINE_ARCHITECTURE.md` for type contracts
-> - `integration/MIGRATION_BLUEPRINT.md` for TS→Kotlin patterns
-> - Source TypeScript files in the Creative Studio archive
+> ```
+> MT-XXX: <one-line summary>
 >
-> Each prompt MUST follow the template seen above:
-> 1. CONTEXT
-> 2. YOUR TASK (numbered steps)
-> 3. FILES TO READ
-> 4. FILES YOU MAY MODIFY
-> 5. ANTI-PATTERNS
-> 6. OUTPUT FORMAT
-> 7. VERIFICATION
-> 8. NEXT
+> CONTEXT
+> <what changed, why this MT exists, what the source TS did>
+>
+> YOUR TASK
+> 1. Read integration/<the relevant doc>.md
+> 2. Implement the named class/method using the patterns in
+>    integration/MIGRATION_BLUEPRINT.md.
+> 3. (specifics)
+>
+> FILES TO READ
+> - integration/<doc>.md
+> - <minimal Kotlin files for context>
+>
+> FILES YOU MAY MODIFY
+> - <explicit list>
+>
+> ANTI-PATTERNS
+> - <surface-specific traps>
+>
+> OUTPUT FORMAT — per ai_handoff/MASTER_PLAN.md Section 3.
+>
+> VERIFICATION
+> - ./gradlew assembleDebug + ./gradlew test (both PASS)
+> - <MT-specific grep checks>
+>
+> NEXT
+> MT-YYY
+> ```
+>
+> When you reach those MTs, ask the orchestrator (the AI that built this
+> handoff) to generate the specific prompt with the exact file lists, or follow
+> the skeleton above using the corresponding section of MIGRATION_BLUEPRINT.md
+> and PIPELINE_ARCHITECTURE.md.
+>
+> The full per-MT detail for the more complex MTs (MT-018, MT-019, MT-027,
+> MT-031) is documented inline in PIPELINE_ARCHITECTURE.md and
+> MIGRATION_BLUEPRINT.md. The downstream agent has enough information to
+> execute each one as a self-contained micro-task.
 
 ---
 
-## 🔑 Universal Prompt Header (Add To Every MT Prompt)
+## 🛑 STOP CONDITIONS
 
-If the downstream agent ever loses context (chat history truncated, etc.), the human can re-prime it by pasting `ai_handoff/KICKOFF.md` again. After that, paste any MT prompt; the agent will resume cleanly.
+The downstream agent MUST stop and escalate to you if any of these happens:
+
+1. A test failure that does not match a known anti-pattern in the prompt.
+2. A new dependency required by the MT description but not present in
+   `gradle/libs.versions.toml`.
+3. An existing file that needs modification but is over 500 lines (too risky
+   to edit blind — request a focused reading first).
+4. A schema change that contradicts integration/DATA_MODEL.md (the doc is
+   authoritative; if you find a real reason to diverge, ask first).
+5. A provider rate-limit / quota error during smoke tests (MT-039 specifically).

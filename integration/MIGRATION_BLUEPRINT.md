@@ -1,424 +1,566 @@
 # MIGRATION BLUEPRINT — TypeScript → Kotlin Patterns
 
-A pattern cookbook for porting Creative Studio TypeScript idioms to idiomatic Kotlin on Android. The downstream agent should reach for this file whenever it needs to translate a `*.ts` file from the source repo.
+How to translate Creative Studio idioms into Kotlin idioms that fit your existing Android architecture. Use as a reference while implementing any STAGE 4+ MT.
 
 ---
 
-## 🎯 Core Translation Rules
+## 🎯 The Core Principle
 
-| TypeScript pattern | Kotlin pattern |
-|---|---|
-| `interface Foo { a: string; b?: number }` | `data class Foo(val a: String, val b: Int? = null)` |
-| `type Status = "a" \| "b" \| "c"` | `enum class Status { A, B, C }` |
-| `z.object({ a: z.string() })` (Zod) | `data class A(val a: String)` |
-| `z.enum(["a","b","c"])` | `enum class { A, B, C }` |
-| `z.array(X).max(N)` | `val items: List<X>` + `require(items.size <= N)` in `init {}` |
-| `Promise<T>` | `suspend fun ... : T` |
-| `async/await` | `suspend` + `withContext(Dispatchers.IO) { ... }` |
-| `fetch(...)` | Retrofit interface + `@Singleton @Inject class FooClient` |
-| `process.env.X` | `BuildConfig.X` (set via `local.properties`) |
-| `try { ... } catch (e: any) { if (...) ... }` | `runCatching { ... }.recoverCatching { e -> when {...} }` |
-| `JSON.parse(...)` | `gson.fromJson(s, T::class.java)` |
-| `useState<T>(...)` | `MutableStateFlow<T>(...)` exposed as `StateFlow` |
-| `useEffect(() => {...}, [dep])` | `LaunchedEffect(dep) { ... }` |
-| `createServerFn(...)` | `@HiltViewModel class ...ViewModel` + `suspend fun handler()` |
-| `supabase.from('x').select(...)` | `xDao.observe...()` returning `Flow` |
-| `supabase.storage.from(...).download(...)` | `ProjectFileStorage.read(path)` |
+**Do not translate code line-by-line.** The TS app uses React + Vercel AI SDK + Zod + Supabase + tRPC. The Android app uses Hilt + Compose + Retrofit + Room + Gson. Translate the **shape and contract** of each module, not its syntax.
 
 ---
 
-## 🧬 Schema Translation Example
+## 📐 Pattern 1: Zod Schemas → Kotlin Data Classes
 
-### TypeScript (Zod):
-```ts
+### TypeScript (Lovable analysis.functions.ts)
+```typescript
 const analysisSchema = z.object({
-  art_style: z.string(),
+  art_style: z.string().describe("e.g. islamic_geometric, arabesque, calligraphy"),
   symmetry: z.object({
-    type: z.string(),
+    type: z.string().describe("e.g. bilateral, radial, none"),
     accuracy_pct: z.number().min(0).max(100),
-    weaker_side: z.string(),
-    notes: z.string(),
   }),
-  findings: z.array(
-    z.object({
-      id: z.string(),
-      severity: z.enum(["info", "warning", "critical"]),
-      region_x_0_1: z.number().min(0).max(1),
-      what: z.string(),
-    }),
-  ).max(12),
+  findings: z.array(z.object({ ... })).max(12)
 });
-
 type SketchAnalysis = z.infer<typeof analysisSchema>;
 ```
 
-### Kotlin equivalent:
+### Kotlin equivalent
 ```kotlin
 data class SketchAnalysis(
     @SerializedName("art_style") val artStyle: String,
     val symmetry: Symmetry,
-    val findings: List<Finding>
+    val findings: List<Finding>             // max 12 enforced in builder
 ) {
-    init {
-        require(findings.size <= 12) { "max 12 findings" }
-    }
+    init { require(findings.size <= 12) { "findings must be ≤ 12" } }
 
     data class Symmetry(
         val type: String,
-        @SerializedName("accuracy_pct") val accuracyPct: Int,
-        @SerializedName("weaker_side") val weakerSide: String,
-        val notes: String
+        @SerializedName("accuracy_pct") val accuracyPct: Int
     ) {
-        init { require(accuracyPct in 0..100) }
+        init {
+            require(accuracyPct in 0..100) { "accuracyPct must be 0..100" }
+        }
     }
 
-    data class Finding(
-        val id: String,
-        val severity: Severity,
-        @SerializedName("region_x_0_1") val regionX: Float,
-        val what: String
-    ) {
-        init { require(regionX in 0f..1f) }
-    }
+    data class Finding(/* ... */) { /* ... */ }
+}
+```
 
-    enum class Severity {
-        @SerializedName("info") INFO,
-        @SerializedName("warning") WARNING,
-        @SerializedName("critical") CRITICAL
+**Rules:**
+- Use `@SerializedName` for snake_case ↔ camelCase
+- Enforce min/max via `init { require() }` (becomes IllegalArgumentException on deserialize)
+- Use `Int` not `Number` for integer fields (Kotlin distinguishes)
+- Nested types as nested data classes inside the outer class — no namespace pollution
+
+---
+
+## 📐 Pattern 2: Vercel AI SDK `generateText` → Custom Retrofit Call
+
+### TypeScript
+```typescript
+const { experimental_output } = await generateText({
+  model: getModel(),
+  system: systemPrompt,
+  experimental_output: Output.object({ schema: analysisSchema }),
+  temperature: 0.1,
+  maxOutputTokens: 4096,
+  messages: [{
+    role: "user",
+    content: [
+      { type: "text", text: userText },
+      { type: "image", image: `data:${mediaType};base64,${b64}` }
+    ]
+  }]
+});
+```
+
+### Kotlin equivalent (Gemini specifically)
+```kotlin
+suspend fun analyze(prompt: String, image: Bitmap): Result<SketchAnalysis> {
+    val analysisSchemaJson = """
+        {"type":"object","properties":{
+            "art_style":{"type":"string"},
+            "symmetry":{"type":"object","properties":{...}},
+            ...
+        },"required":["art_style","symmetry","findings"]}
+    """.trimIndent()
+
+    val systemPrompt = "You are a master designer..."
+    val userText = "..."
+
+    val b64 = bitmapToBase64(image)
+
+    val request = GeminiRequest(
+        contents = listOf(
+            GeminiRequest.Content(parts = listOf(
+                GeminiRequest.Part(text = "$systemPrompt\n\n$userText"),
+                GeminiRequest.Part(inlineData = GeminiRequest.InlineData(
+                    mimeType = "image/jpeg",
+                    data = b64
+                ))
+            ))
+        ),
+        generationConfig = GeminiRequest.GenerationConfig(
+            temperature = 0.1f,
+            maxOutputTokens = 4096,
+            responseMimeType = "application/json",
+            responseSchema = analysisSchemaJson    // Gemini supports JSON schema constrained output
+        )
+    )
+
+    return runCatching {
+        val response = api.generateContent(MODEL, key, request)
+        val jsonText = response.candidates?.firstOrNull()
+            ?.content?.parts?.firstOrNull()
+            ?.text ?: error("empty candidate")
+        Gson().fromJson(jsonText, SketchAnalysis::class.java)
     }
 }
 ```
 
-**Why `init { require(...) }`:** Kotlin doesn't have Zod's runtime parse + validate; we validate at construction. This catches malformed JSON from the AI early.
+### Through the gateway (preferred — post-MT-036)
+```kotlin
+suspend fun analyze(prompt: String, image: Bitmap): Result<SketchAnalysis> {
+    val chain = providerRegistry.activeVisionChain()
+    val structuredPrompt = """
+        $systemPrompt
+
+        Return ONLY a JSON object matching this schema:
+        ${analysisSchemaText}
+
+        $userText
+    """.trimIndent()
+
+    return chain.visionAnalyze(structuredPrompt, image)
+        .mapCatching { jsonText -> Gson().fromJson(jsonText, SketchAnalysis::class.java) }
+        .recover { e ->
+            Log.w(TAG, "Structured analysis failed: ${e.message} — using heuristic fallback")
+            FallbackAnalysis.build(template)
+        }
+}
+```
+
+**Why:** The gateway abstracts whether the call goes to Gemini's `responseSchema` constrained mode, Groq's OpenAI-compatible API, or OpenRouter's auto-router. The caller only deals with `String → SketchAnalysis`.
 
 ---
 
-## 🧰 Schema-Validated AI Call Pattern
+## 📐 Pattern 3: Server Function Mutation → Repository Mutation
 
-Lovable uses `generateText` with `experimental_output: Output.object({ schema })` — Vercel AI SDK strict mode. We need to replicate that with Gson + manual repair.
+### TypeScript (Supabase)
+```typescript
+await supabaseAdmin
+  .from("projects")
+  .update({ analysis: experimental_output as any, status: "analyzed" })
+  .eq("id", data.projectId);
+```
 
+### Kotlin (Room)
 ```kotlin
-// design/ai/analysis/StructuredAnalysisClient.kt
+// In ProjectRepository:
+suspend fun saveAnalysis(projectId: String, analysis: SketchAnalysis) {
+    val json = gson.toJson(analysis)
+    withContext(Dispatchers.IO) {
+        projectDao.updateAnalysis(projectId, json, status = ProjectStatus.ANALYZED.name)
+    }
+}
 
-class StructuredAnalysisClient @Inject constructor(
-    private val gateway: ProviderRegistry,
-    private val gson: Gson
-) {
-    /**
-     * Send an image + structured-output prompt; validate JSON; retry once with
-     * repair-prompt if validation fails; fall back to heuristic on second failure.
-     */
-    suspend fun analyze(sketch: Bitmap, template: Template): Result<SketchAnalysis> {
-        val schemaSnippet = SCHEMA_DESCRIPTION  // human-readable JSON shape pasted into prompt
-        val systemPrompt = SYSTEM_PROMPT
-        val userPrompt = buildUserPrompt(template, schemaSnippet)
+// In ProjectDao:
+@Query("UPDATE projects SET analysisJson = :json, status = :status, updatedAt = :now WHERE id = :id")
+suspend fun updateAnalysis(id: String, json: String, status: String, now: Long = System.currentTimeMillis())
+```
 
-        val chain = gateway.activeVisionChain()
-        val response = chain.visionAnalyze(userPrompt, sketch)
-            .getOrElse { return Result.failure(it) }
+**Rules:**
+- DAO methods always `suspend` (not Flow when it's a mutation)
+- `updatedAt` parameter has default `System.currentTimeMillis()` — never use `now()` inside the SQL (SQLite has limited time fns)
+- Repository decides the JSON serialization; DAO is dumb storage
+- Status enums round-trip as their `.name` string
 
-        // Parse + validate
-        return runCatching {
-            val cleaned = response.trim().removeSurrounding("```json", "```").trim()
-            gson.fromJson(cleaned, SketchAnalysis::class.java)
-                ?: error("Gson returned null for: ${cleaned.take(200)}")
+---
+
+## 📐 Pattern 4: Multi-Modal Image Content
+
+### TypeScript
+```typescript
+messages: [{
+  role: "user",
+  content: [
+    { type: "text", text: userText },
+    { type: "image", image: `data:${mediaType};base64,${b64}` }
+  ]
+}]
+```
+
+### Kotlin — Gemini
+```kotlin
+GeminiRequest.Content(parts = listOf(
+    GeminiRequest.Part(text = userText),
+    GeminiRequest.Part(inlineData = GeminiRequest.InlineData(
+        mimeType = "image/jpeg",
+        data = base64
+    ))
+))
+```
+
+### Kotlin — OpenAI-compatible (Groq, OpenRouter, Cloudflare)
+```kotlin
+ChatRequest.Message(
+    role = "user",
+    content = listOf(
+        ChatRequest.Content.Text(text = userText),
+        ChatRequest.Content.ImageUrl(imageUrl = "data:image/jpeg;base64,$base64")
+    )
+)
+```
+
+**Bitmap → base64 helper:**
+```kotlin
+suspend fun Bitmap.toJpegBase64(quality: Int = 85, maxDimension: Int = 1024): String =
+    withContext(Dispatchers.Default) {
+        val resized = if (width > maxDimension || height > maxDimension) {
+            val scale = maxDimension.toFloat() / maxOf(width, height)
+            Bitmap.createScaledBitmap(this@toJpegBase64, (width * scale).toInt(), (height * scale).toInt(), true)
+        } else this@toJpegBase64
+        ByteArrayOutputStream().use { out ->
+            resized.compress(Bitmap.CompressFormat.JPEG, quality, out)
+            Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
         }
     }
+```
+
+---
+
+## 📐 Pattern 5: React `useQuery` → Compose `collectAsStateWithLifecycle`
+
+### TypeScript (TanStack Query)
+```tsx
+const { data: project } = useQuery({
+  queryKey: ['project', projectId],
+  queryFn: () => fetchProject(projectId),
+});
+return <div>{project?.title}</div>;
+```
+
+### Kotlin (Compose + Flow)
+```kotlin
+@HiltViewModel
+class ProjectViewModel @Inject constructor(
+    repo: ProjectRepository,
+    savedStateHandle: SavedStateHandle,
+) : ViewModel() {
+    val projectId: String = savedStateHandle["projectId"]!!
+    val project: StateFlow<Project?> = repo.observe(projectId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+}
+
+@Composable
+fun ProjectScreen(viewModel: ProjectViewModel = hiltViewModel()) {
+    val project by viewModel.project.collectAsStateWithLifecycle()
+    Text(project?.title ?: "Loading…")
+}
+```
+
+---
+
+## 📐 Pattern 6: Error Translation (HTTP → Domain Errors)
+
+### TypeScript (loose `any`)
+```typescript
+catch (err: any) {
+  const msg = err?.message ?? String(err);
+  if (msg.includes("429")) throw new Error("AI service is rate limited");
+  if (msg.includes("402")) throw new Error("AI credits exhausted");
+  throw new Error(`Analysis failed: ${msg}`);
+}
+```
+
+### Kotlin (typed)
+```kotlin
+.recoverCatching { e ->
+    val httpCode = (e as? HttpException)?.code()
+    when (httpCode) {
+        404 -> throw ProviderRecoverableError.NotFound("Model deprecated: ${e.message()}")
+        429 -> throw ProviderRecoverableError.RateLimited("Rate limited")
+        402 -> throw ProviderRecoverableError.QuotaExhausted("Credits exhausted")
+        503 -> throw ProviderRecoverableError.ServiceUnavailable("Provider unavailable")
+        401, 403 -> throw ProviderFatalError.InvalidKey("Auth failed")
+        in 400..499 -> throw ProviderFatalError.MalformedRequest("HTTP ${httpCode}: ${e.message()}")
+        else -> throw e
+    }
+}
+```
+
+Every HTTP-talking call site MUST translate errors into the typed gateway hierarchy. Untyped error strings are forbidden in design/ai/ (Hard Rule #6).
+
+---
+
+## 📐 Pattern 7: Supabase Storage → Local Files
+
+### TypeScript
+```typescript
+const { data, error } = await supabaseAdmin.storage
+  .from("renders")
+  .upload(renderPath, bytes, { contentType, upsert: true });
+
+const { data: signed } = await supabaseAdmin.storage
+  .from("renders")
+  .createSignedUrl(renderPath, 3600);
+```
+
+### Kotlin (local file system)
+```kotlin
+@Singleton
+class MawaaiStorage @Inject constructor(@ApplicationContext ctx: Context) {
+    private val renders: File = File(ctx.filesDir, "renders").apply { mkdirs() }
+
+    suspend fun writeRender(projectId: String, bytes: ByteArray, ext: String = "png"): File =
+        withContext(Dispatchers.IO) {
+            val f = File(renders, "$projectId.$ext")
+            f.writeBytes(bytes)
+            f
+        }
+
+    fun renderUri(projectId: String, ext: String = "png"): Uri? {
+        val f = File(renders, "$projectId.$ext")
+        return if (f.exists()) Uri.fromFile(f) else null
+    }
+}
+```
+
+For external-share (the "signed URL" equivalent), copy the file to `MediaStore.Downloads` and use a `FileProvider` URI.
+
+---
+
+## 📐 Pattern 8: Optimistic UI Updates
+
+### TypeScript (TanStack)
+```tsx
+const mutation = useMutation({
+  mutationFn: acceptSuggestion,
+  onMutate: async (id) => {
+    await queryClient.cancelQueries(['project', projectId]);
+    queryClient.setQueryData(['project', projectId], (old) => ({
+      ...old, accepted_suggestion_ids: [...old.accepted_suggestion_ids, id]
+    }));
+  }
+});
+```
+
+### Kotlin (StateFlow-based)
+```kotlin
+class SuggestionCardsViewModel @Inject constructor(...) : ViewModel() {
+    private val _optimisticAcceptedIds = MutableStateFlow<Set<String>>(emptySet())
+    val acceptedIds: StateFlow<Set<String>> =
+        combine(repo.observe(projectId).map { it?.acceptedSuggestionIds.orEmpty().toSet() },
+                _optimisticAcceptedIds) { server, local -> server + local }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
+    fun accept(id: String) {
+        _optimisticAcceptedIds.update { it + id }
+        viewModelScope.launch {
+            repo.saveAcceptedSuggestionIds(
+                projectId,
+                (acceptedIds.value + id).toList()
+            )
+            // On success, _optimisticAcceptedIds can be cleared — server is now source of truth
+            _optimisticAcceptedIds.update { it - id }
+        }
+    }
+}
+```
+
+---
+
+## 📐 Pattern 9: Surface-Conditional Logic
+
+### TypeScript
+```typescript
+const colorInstr = effectiveColor
+  ? GARMENT_SURFACES.has(surfaceKey)
+    ? `The garment's base fabric color must be ${effectiveColor}. The embroidery/pattern color should harmonize.`
+    : `Use ${effectiveColor} as the dominant color in the design.`
+  : "";
+```
+
+### Kotlin (exhaustive `when` on sealed)
+```kotlin
+fun colorInstruction(profile: SurfaceProfile, color: String?): String? {
+    if (color.isNullOrBlank()) return null
+    return when (profile) {
+        is SurfaceProfile.FabricAbaya, is SurfaceProfile.FabricThobe, is SurfaceProfile.FabricToub ->
+            "The garment's base fabric color must be $color. The embroidery/pattern color should harmonize."
+        is SurfaceProfile.CeramicPlate, is SurfaceProfile.CeramicTile, is SurfaceProfile.CeramicMug,
+        is SurfaceProfile.SkinPalm, is SurfaceProfile.SkinHandFull, is SurfaceProfile.SkinFoot,
+        is SurfaceProfile.WallStone, is SurfaceProfile.WallPlaster, is SurfaceProfile.WallArch ->
+            "Use $color as the dominant color in the design."
+    }
+}
+```
+
+**Why exhaustive when:** Adding a new SurfaceProfile variant (e.g. `FabricKurta`) becomes a compile error here, forcing you to decide which group it belongs to. No "default" branch silently misclassifying.
+
+---
+
+## 📐 Pattern 10: Quality Validation Two-Tier
+
+### TypeScript (lines 78-145 of render.functions.ts)
+```typescript
+// Tier 1: heuristic from analysis.template_fit
+const heuristic = { passed: blockers.length === 0, ... };
+if (!heuristic.passed) return heuristic;
+// Tier 2: AI visual QA on (sketch, render)
+try {
+  const result = await generateText({ ... });
+  return { passed: qa.passed && qa.composition_preservation_0_100 >= 70 ... };
+} catch (err) {
+  return { passed: heuristic.score >= 70, ... };
+}
+```
+
+### Kotlin (clean separation of two reviewers + composer)
+```kotlin
+class QualityGate @Inject constructor(
+    private val heuristic: HeuristicQualityCheck,
+    private val ai: AiQualityReviewer,
+) {
+    suspend fun evaluate(
+        sketch: Bitmap, render: Bitmap, prompt: String,
+        analysis: SketchAnalysis, template: Template
+    ): RenderQuality {
+        // Tier 1
+        val hScore = heuristic.score(analysis, template)
+        if (hScore.blockers.isNotEmpty()) {
+            return RenderQuality(
+                compositionPreservation = hScore.compositionScore,
+                surfaceFit = hScore.surfaceScore,
+                lightingRealism = 60,           // unknown without AI tier
+                passed = false,
+                issues = hScore.blockers,
+                notes = "Tier-1 heuristic blocked: ${hScore.blockers.joinToString(" / ")}"
+            )
+        }
+        // Tier 2
+        return ai.review(sketch, render, prompt, template).getOrElse {
+            // Fallback to tier-1 score if AI itself failed
+            RenderQuality(
+                compositionPreservation = hScore.compositionScore,
+                surfaceFit = hScore.surfaceScore,
+                lightingRealism = 70,
+                passed = hScore.compositionScore >= 70 && hScore.surfaceScore >= 70,
+                issues = if (hScore.compositionScore >= 70) emptyList() else listOf("AI review unavailable; heuristic-only pass"),
+                notes = "Tier-2 AI review failed: ${it.message?.take(120)}"
+            )
+        }
+    }
+}
+```
+
+**Why the split:** Each reviewer is independently testable. The composer is a tiny coordinator with one job.
+
+---
+
+## 📐 Pattern 11: Render Prompt Assembly
+
+### TypeScript
+```typescript
+const prompt = [
+  structure,
+  templateIntelligencePrompt(template),
+  baseDirection,
+  palette,
+  colorInstr,
+  refinements,
+  "Final image only ..."
+].filter(Boolean).join(" ");
+```
+
+### Kotlin (RenderPromptBuilder with explicit segments)
+```kotlin
+class RenderPromptBuilder @Inject constructor() {
+    fun build(
+        template: Template,
+        profile: SurfaceProfile,
+        acceptedSuggestions: List<Suggestion>,
+        colorOverride: String?,
+    ): RenderPrompt = RenderPrompt(
+        structurePreservation = STRUCTURE_RULE,
+        templateIntelligence = templateIntelligencePrompt(template),
+        baseDirection = SurfaceDirections.forProfile(profile),
+        palette = template.traditionalPalette
+            .takeIf { it.isNotEmpty() }
+            ?.let { "Honor the traditional palette where natural: ${it.joinToString(", ")}." },
+        colorOverride = colorInstruction(profile, colorOverride),
+        refinements = acceptedSuggestions
+            .takeIf { it.isNotEmpty() }
+            ?.let { suggs ->
+                "Apply these refinements while rendering: " +
+                    suggs.joinToString(" | ") { "${it.title} — ${it.previewHint}" }
+            },
+    )
 
     private companion object {
-        const val SYSTEM_PROMPT = "You are a master cultural designer..."
-        // Embedded directly so the model knows the shape without an OpenAI-style "functions" call.
-        const val SCHEMA_DESCRIPTION = """
-            Return ONLY valid JSON matching this exact shape (no markdown):
-            {
-              "art_style": "string",
-              "cultural_origin": "string",
-              "symmetry": { "type": "string", "accuracy_pct": 0-100, ... },
-              ...
-            }
-        """
+        const val STRUCTURE_RULE = "CRITICAL: Preserve the exact composition, motif " +
+            "placement, line layout, and proportions of the input sketch — do not " +
+            "reinterpret, restyle, or rearrange. Treat the sketch as the definitive " +
+            "design and only translate its strokes into the target medium with " +
+            "realistic materials, lighting, and texture."
     }
 }
 ```
 
-**Critical idiom:** wrap the response parse in `runCatching` and let a higher layer decide whether to invoke the heuristic fallback. Don't catch-and-swallow inside the client.
+Then `RenderPrompt.toPromptString()` (defined in PIPELINE_ARCHITECTURE.md) does the final concatenation.
 
 ---
 
-## 🌐 Retrofit Client Pattern (per provider)
+## 🚫 Anti-Patterns To Avoid
 
-The source uses `fetch(...)` directly. On Android, every provider becomes a Retrofit interface + a `@Singleton @Inject class` wrapper.
+### ❌ Don't port React state hooks as `mutableStateOf` everywhere
+React stores everything in component state. Compose state is for UI-only ephemera. **Domain state lives in StateFlow inside a ViewModel.**
 
-```kotlin
-// design/ai/groq/GroqApi.kt
+### ❌ Don't translate `as any` to `Any`
+TS's `as any` is a confession of "I don't know the type". Kotlin's `Any` is a deliberate choice. If you see `as any` in TS, your job is to **figure out the actual type** and model it properly.
 
-interface GroqApi {
-    @POST("openai/v1/chat/completions")
-    suspend fun chatCompletion(
-        @Header("Authorization") auth: String,
-        @Body body: GroqChatRequest
-    ): GroqChatResponse
-}
+### ❌ Don't replicate Supabase RLS in repository code
+Supabase Row-Level Security policies live in the database. On Android, there's no row-level concept — the device IS the user. **Skip RLS translation entirely.**
 
-// design/ai/groq/GroqDtos.kt — OpenAI-compatible chat schema (Groq follows OpenAI shape)
+### ❌ Don't translate `createServerFn` middleware as Kotlin annotations
+TS server functions wrap a handler with middleware (auth, validation). In Android, auth is enforced by the OS (the app is signed for the user) and validation is the input layer's job (ViewModel). **Just call the repository directly.**
 
-data class GroqChatRequest(
-    val model: String,
-    val messages: List<Message>,
-    @SerializedName("max_tokens") val maxTokens: Int? = null,
-    val temperature: Float? = null
-) {
-    data class Message(val role: String, val content: List<Content>) {
-        // Vision: content is an array of {type, text} or {type, image_url}
-        sealed interface Content {
-            @SerializedName("type") val type: String
-            data class Text(val text: String) : Content {
-                @SerializedName("type") override val type = "text"
-            }
-            data class ImageUrl(@SerializedName("image_url") val imageUrl: ImageUrlValue) : Content {
-                @SerializedName("type") override val type = "image_url"
-            }
-        }
-        data class ImageUrlValue(val url: String)
-    }
-}
+### ❌ Don't keep TypeScript's `null` vs `undefined` distinction
+Kotlin has only `null`. Treat `undefined` as `null`.
 
-data class GroqChatResponse(
-    val choices: List<Choice>,
-    val error: GroqError? = null
-) {
-    data class Choice(val message: ResponseMessage)
-    data class ResponseMessage(val role: String, val content: String) {
-        val contentText: String get() = content
-    }
-    data class GroqError(val message: String, val code: String?)
-}
-```
+### ❌ Don't put Gson serialization in entities
+Entities are pure data. Serialization belongs in the Repository's mapper functions.
+
+### ❌ Don't import `kotlinx.serialization` if you're using Gson elsewhere
+The existing app uses Gson. **Stay with Gson.** Mixing serializers doubles your dependency footprint.
 
 ---
 
-## ⏳ Coroutines / Async Mapping
+## ✅ Pattern Cheat Sheet
 
-| TypeScript | Kotlin |
+| TypeScript idiom | Kotlin idiom |
 |---|---|
-| `const x = await foo()` | `val x = foo()` (where `foo` is `suspend`) |
-| `Promise.all([a(), b()])` | `coroutineScope { val a = async { a() }; val b = async { b() }; a.await() to b.await() }` |
-| `try { await x } catch (e) { ... }` | `runCatching { x }.getOrElse { e -> ... }` |
-| `setTimeout(fn, ms)` | `delay(ms); fn()` |
-| `setInterval(fn, ms)` | `flow { while (true) { delay(ms); emit(Unit) } }` |
+| `z.object({ ... })` | `data class X(...)` with `init { require(...) }` |
+| `z.infer<typeof X>` | The data class itself |
+| `await fn()` | `suspend fun` + `withContext(Dispatchers.IO) { fn() }` |
+| `useQuery` | `repo.observe(id).stateIn(viewModelScope, ...)` |
+| `useMutation` | `viewModelScope.launch { repo.mutate(...) }` |
+| `process.env.X` | `BuildConfig.X` (from local.properties via build.gradle.kts) |
+| `as any` | Figure out the type. Always. |
+| `try { ... } catch (e: any)` | `runCatching { ... }.recoverCatching { e -> ... }` |
+| `console.log` | `Log.d(TAG, ...)` or `AppLogger.d(...)` if present |
+| `JSON.stringify(x)` | `gson.toJson(x)` |
+| `JSON.parse(s)` | `gson.fromJson(s, T::class.java)` |
+| `Date.now()` | `System.currentTimeMillis()` |
+| `setTimeout(fn, ms)` | `viewModelScope.launch { delay(ms); fn() }` |
+| React `props` | Compose function parameters |
+| Tailwind classes | Compose `Modifier` chain + Material theme |
+| Supabase RPC | Direct repository call |
+| Supabase storage URL | `FileProvider` content:// URI |
+| TanStack mutation | StateFlow + viewModelScope.launch |
+| React Router route | Navigation Compose `composable("route/{id}") { ... }` |
 
 ---
 
-## 🪟 Compose UI Mapping (PipelineProgress example)
-
-### TypeScript (React + Tailwind):
-```tsx
-function PipelineProgress({ stage }: { stage: string }) {
-  const stages = ["sketch", "analyze", "render"];
-  return (
-    <div className="flex gap-2">
-      {stages.map((s) => (
-        <div key={s} className={cn("badge", s === stage && "active")}>
-          {s}
-        </div>
-      ))}
-    </div>
-  );
-}
-```
-
-### Compose:
-```kotlin
-@Composable
-fun PipelineProgress(currentStage: PipelineStage, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        PipelineStage.values().forEach { stage ->
-            StageBadge(
-                stage = stage,
-                isActive = stage == currentStage,
-                modifier = Modifier.weight(1f)
-            )
-        }
-    }
-}
-
-enum class PipelineStage(val label: String) {
-    SKETCH("Sketch"),
-    ANALYZE("Analyze"),
-    SUGGEST("Suggest"),
-    RENDER("Render"),
-    QUALITY("Quality"),
-    EXPORT("Export")
-}
-
-@Composable
-private fun StageBadge(stage: PipelineStage, isActive: Boolean, modifier: Modifier = Modifier) {
-    val container = if (isActive) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.surfaceVariant
-    val content = if (isActive) MaterialTheme.colorScheme.onPrimary
-                  else MaterialTheme.colorScheme.onSurfaceVariant
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(container)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(stage.label, style = MaterialTheme.typography.labelMedium, color = content)
-    }
-}
-```
-
----
-
-## 🔁 Error Translation Pattern
-
-### TypeScript:
-```ts
-try {
-  await renderMasterpiece(projectId);
-} catch (e: any) {
-  if (e.message.includes("429")) { showToast("Rate limited"); }
-  else if (e.message.includes("402")) { showToast("Credits exhausted"); }
-  else { showToast("Render failed: " + e.message); }
-}
-```
-
-### Kotlin:
-```kotlin
-viewModelScope.launch {
-    renderer.render(projectId).fold(
-        onSuccess = { /* navigate */ },
-        onFailure = { e ->
-            val userMessage = when (e) {
-                is ProviderRecoverableError.RateLimited -> "AI is busy — try again shortly"
-                is ProviderRecoverableError.QuotaExhausted -> "Free quota exhausted — switch provider in Settings"
-                is ProviderFatalError.InvalidKey -> "API key invalid — check Settings"
-                is ProviderFatalError.SafetyBlock -> "Content blocked by safety filter"
-                else -> "Render failed: ${e.message}"
-            }
-            _events.emit(UiEvent.ShowSnackbar(userMessage))
-        }
-    )
-}
-```
-
-The `when` exhaustive over sealed errors > string-match. Type-safe, refactor-safe.
-
----
-
-## 📦 Storage Pattern
-
-### TypeScript (Supabase storage):
-```ts
-const { data } = await supabase.storage.from("sketches").download(path);
-const buf = new Uint8Array(await data.arrayBuffer());
-const b64 = btoa(String.fromCharCode(...buf));
-```
-
-### Kotlin (local file + Base64):
-```kotlin
-suspend fun loadSketchAsBase64(projectId: String): Pair<String, String> = withContext(Dispatchers.IO) {
-    val file = projectFileStorage.sketchFile(projectId)
-    require(file.exists()) { "Sketch not saved for project $projectId" }
-    val bytes = file.readBytes()
-    val mime = if (file.extension.equals("png", true)) "image/png" else "image/jpeg"
-    val b64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
-    mime to b64
-}
-```
-
----
-
-## 🧪 Tests — Lovable's Zod vs Kotlin's `init {}`
-
-### Lovable:
-```ts
-// schema validates at parse time
-const result = analysisSchema.safeParse(json);
-if (!result.success) { useFallback(); }
-```
-
-### Kotlin equivalent:
-```kotlin
-val analysis = runCatching { gson.fromJson(json, SketchAnalysis::class.java) }
-    .getOrElse { return useFallback() }
-// init { require(...) } already validated bounds; if it threw, runCatching captured it.
-```
-
-Add unit tests for boundary values:
-
-```kotlin
-class SketchAnalysisTest {
-    @Test fun `Symmetry accepts boundary values`() {
-        SketchAnalysis.Symmetry("bilateral", 0, "none", "")  // OK
-        SketchAnalysis.Symmetry("bilateral", 100, "none", "") // OK
-    }
-
-    @Test(expected = IllegalArgumentException::class)
-    fun `Symmetry rejects accuracy_pct above 100`() {
-        SketchAnalysis.Symmetry("bilateral", 101, "none", "")
-    }
-
-    @Test fun `findings max 12 enforced`() {
-        SketchAnalysis(
-            artStyle = "x",
-            symmetry = SketchAnalysis.Symmetry("none", 0, "none", ""),
-            findings = List(12) { dummyFinding(it.toString()) }
-        )
-        assertFailsWith<IllegalArgumentException> {
-            SketchAnalysis(
-                artStyle = "x",
-                symmetry = SketchAnalysis.Symmetry("none", 0, "none", ""),
-                findings = List(13) { dummyFinding(it.toString()) }
-            )
-        }
-    }
-}
-```
-
----
-
-## 🎨 Specific Idiomatic Differences To Watch
-
-1. **Optional chaining** `a?.b?.c` ports cleanly: `a?.b?.c` — same in Kotlin.
-2. **Nullish coalescing** `a ?? b` → `a ?: b`.
-3. **String templates** `` `Hello ${name}` `` → `"Hello $name"`.
-4. **Array spread** `[...arr]` → `arr.toMutableList()` or `arr + emptyList()`.
-5. **Object spread** `{ ...obj, x: 1 }` → `obj.copy(x = 1)` (for data classes).
-6. **Destructuring** `const { a, b } = obj` → `val (a, b) = obj` (data classes with `componentN`).
-7. **Truthy/falsy** doesn't work in Kotlin: `if (str)` → `if (str.isNotEmpty())`.
-8. **Number division** `5 / 2 == 2.5` in TS → `5 / 2 == 2` in Kotlin (use `5.0 / 2`).
-
----
-
-## 🚫 What Not To Translate
-
-- **React state hooks** (`useState`, `useReducer`, `useContext`) — use ViewModel + StateFlow.
-- **React Query** (`useQuery`) — use a Flow that re-emits on database changes.
-- **TanStack Router** (`createServerFn`) — replace with ViewModel methods.
-- **Tailwind classes** — translate semantically to Compose `Modifier` calls, not 1:1.
-- **shadcn/ui components** — Material 3 has equivalents (Button, Card, Switch, etc.).
-- **Supabase auth** — single-user offline app; no auth layer.
-- **Server functions** — Android calls APIs directly via Retrofit/the gateway.
-
----
-
-## ✅ Pre-Commit Checklist For Any Port
-
-For every `.ts` → `.kt` port commit, verify:
-
-- [ ] No `Map<String, Any>` introduced (Hard Rule #6)
-- [ ] No `as` casts on `Any?` outside of one well-commented site
-- [ ] All Zod `.min()/.max()` translated to `init { require(...) }`
-- [ ] All Zod enums translated to Kotlin `enum class` with `@SerializedName`
-- [ ] All `Promise<T>` translated to `suspend fun ... : T`
-- [ ] All `async/await` running inside an explicit Dispatcher
-- [ ] No new dependencies (unless MT authorizes)
-- [ ] Schema constraints unit-tested at boundary values
-- [ ] Public API has KDoc explaining when to use it
-
-Use this list when reviewing the downstream agent's diff.
+**End of Migration Blueprint.** Cross-reference PIPELINE_ARCHITECTURE.md and SURFACE_PROFILES.md when implementing the higher-stage MTs.
