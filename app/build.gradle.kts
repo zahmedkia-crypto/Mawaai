@@ -50,6 +50,7 @@ android {
         buildConfigField("String", "CLOUDFLARE_ACCOUNT_ID", "\"${localProps.getProperty("CLOUDFLARE_ACCOUNT_ID") ?: ""}\"")
         buildConfigField("String", "CLOUDFLARE_API_TOKEN", "\"${localProps.getProperty("CLOUDFLARE_API_TOKEN") ?: ""}\"")
         buildConfigField("String", "OPENROUTER_API_KEY", "\"${localProps.getProperty("OPENROUTER_API_KEY") ?: ""}\"")
+        buildConfigField("String", "GROQ_API_KEY", "\"${localProps.getProperty("GROQ_API_KEY") ?: ""}\"")
     }
 
     signingConfigs {
