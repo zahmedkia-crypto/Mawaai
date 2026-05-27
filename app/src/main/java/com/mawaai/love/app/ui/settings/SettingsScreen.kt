@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.WbSunny
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
+    onNavigateToAiProviders: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val profile by viewModel.profile.collectAsStateWithLifecycle()
@@ -57,6 +58,17 @@ fun SettingsScreen(
                         title = stringResource(R.string.settings_partner_name),
                         subtitle = profile.partnerName,
                         onClick = { showPartnerNameDialog = true }
+                    )
+                }
+            }
+
+            item {
+                SettingsSection(title = "Creative Studio (AI)") {
+                    SettingsItem(
+                        icon = Icons.Default.Palette,
+                        title = "AI Providers",
+                        subtitle = "Configure Cloudflare, Groq, and Gemini",
+                        onClick = onNavigateToAiProviders
                     )
                 }
             }
@@ -348,5 +360,5 @@ fun SettingsItem(
 @Preview(showBackground = true, backgroundColor = 0xFF1A1209)
 @Composable
 private fun SettingsScreenPreview() {
-    SettingsScreen(onBack = {})
+    SettingsScreen(onBack = {}, onNavigateToAiProviders = {})
 }

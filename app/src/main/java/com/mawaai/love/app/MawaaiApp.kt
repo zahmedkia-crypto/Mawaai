@@ -8,6 +8,7 @@ import com.mawaai.love.app.core.lifecycle.ForegroundResumeTracker
 import com.mawaai.love.app.core.notifications.MawaaiNotificationManager
 import com.mawaai.love.app.core.opencv.OpenCVBootstrap
 import com.mawaai.love.app.workers.DailyQuoteWorker
+import com.mawaai.love.app.workers.SeedDatabaseWorker
 import dagger.hilt.android.HiltAndroidApp
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
@@ -38,6 +39,7 @@ class MawaaiApp : Application(), Configuration.Provider {
         OpenCVBootstrap.init(this)
         notificationManager.createNotificationChannels()
         scheduleDailyWorkers()
+        scheduleOneTimeWorkers()
         // Process-wide observer: counts background time across Activity
         // restarts so the 30s intro-replay rule reflects real user absence.
         ProcessLifecycleOwner.get().lifecycle.addObserver(foregroundResumeTracker)
@@ -56,6 +58,18 @@ class MawaaiApp : Application(), Configuration.Provider {
             "daily_quote",
             ExistingPeriodicWorkPolicy.KEEP,
             dailyQuoteRequest
+        )
+    }
+
+    private fun scheduleOneTimeWorkers() {
+        val workManager = WorkManager.getInstance(this)
+        val seedRequest = OneTimeWorkRequestBuilder<SeedDatabaseWorker>()
+            .build()
+        
+        workManager.enqueueUniqueWork(
+            "seed_database",
+            ExistingWorkPolicy.KEEP,
+            seedRequest
         )
     }
 

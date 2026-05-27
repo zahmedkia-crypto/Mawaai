@@ -5,6 +5,10 @@ import android.util.Log
 import com.google.mlkit.vision.segmentation.subject.SubjectSegmentation
 import com.google.mlkit.vision.segmentation.subject.SubjectSegmenterOptions
 import com.mawaai.love.app.core.opencv.OpenCVBootstrap
+import com.mawaai.love.app.data.database.entities.ProjectEntity
+import com.mawaai.love.app.data.repository.ProjectRepository
+import com.mawaai.love.app.data.repository.TemplateRepository
+import com.mawaai.love.app.design.ai.analysis.StructuredAnalysisClient
 import com.mawaai.love.app.design.ai.cloudflare.CloudflareWorkersAiClient
 import com.mawaai.love.app.design.ai.gemini.GeminiVisionClient
 import com.mawaai.love.app.design.ai.huggingface.HuggingFaceClient
@@ -29,7 +33,10 @@ import com.mawaai.love.app.design.ai.processors.EdgeDetectionProcessor
 import com.mawaai.love.app.design.ai.processors.SegmentationProcessor
 import com.mawaai.love.app.design.ai.processors.StyleTransferProcessor
 import com.mawaai.love.app.design.ai.processors.SuperResolutionProcessor
+import com.mawaai.love.app.design.ai.quality.AiQualityReviewer
 import com.mawaai.love.app.design.ai.removebg.RemoveBgClient
+import com.mawaai.love.app.design.ai.render.RenderPromptBuilder
+import com.mawaai.love.app.design.ai.suggestions.SuggestionsClient
 import com.mawaai.love.app.design.domain.model.FabricTone
 import com.mawaai.love.app.design.domain.model.SkinTone
 import javax.inject.Inject
@@ -68,6 +75,15 @@ class AIEngineImpl @Inject constructor(
     private val improvementEngine: ControlledImprovementEngine,
     private val materialRenderer: MaterialRenderer,
     private val visionClient: GeminiVisionClient,
+    
+    // Phase 25/MT-015/16/17 Intelligence Wiring
+    private val analysisClient: StructuredAnalysisClient,
+    private val suggestionsClient: SuggestionsClient,
+    private val promptBuilder: RenderPromptBuilder,
+    private val qualityReviewer: AiQualityReviewer,
+    private val projectRepository: ProjectRepository,
+    private val templateRepository: TemplateRepository,
+
     // Phase 23 — extra cloud providers wired into the DI graph.
     //
     // [removeBg]: PREMIUM emergency fallback for the segmentation step.
@@ -103,6 +119,106 @@ class AIEngineImpl @Inject constructor(
     override val cloudTextToImageAvailable: Boolean get() = cloudflare.get().isConfigured
 
     override val cloudRefinementAvailable: Boolean get() = cloudflare.get().isConfigured
+
+    override suspend fun analyzeProject(projectId: String): com.mawaai.love.app.design.ai.analysis.SketchAnalysis {
+        val project = projectRepository.getProjectById(projectId) ?: error("Project $projectId not found")
+        val template = templateRepository.getTemplateById(project.templateId) ?: error("Template ${project.templateId} not found")
+        val sketch = loadBitmap(project.sketchPath)
+
+        val analysis = analysisClient.analyze(sketch, template).getOrThrow()
+        projectRepository.saveAnalysis(projectId, analysis)
+        return analysis
+    }
+
+    override suspend fun generateSuggestions(projectId: String): List<com.mawaai.love.app.design.ai.suggestions.Suggestion> {
+        val project = projectRepository.getProjectById(projectId) ?: error("Project $projectId not found")
+        val template = templateRepository.getTemplateById(project.templateId) ?: error("Template ${project.templateId} not found")
+        val sketch = loadBitmap(project.sketchPath)
+        val analysis = project.analysisJson?.let { 
+            com.google.gson.Gson().fromJson(it, com.mawaai.love.app.design.ai.analysis.SketchAnalysis::class.java) 
+        } ?: analyzeProject(projectId)
+
+        val suggestions = suggestionsClient.generateSuggestions(sketch, template, analysis).getOrThrow()
+        val updated = project.copy(
+            suggestionsJson = com.google.gson.Gson().toJson(suggestions),
+            updatedAt = System.currentTimeMillis()
+        )
+        projectRepository.updateProject(updated)
+        return suggestions
+    }
+
+    override suspend fun renderProject(
+        projectId: String,
+        onProgress: (ProcessingStage) -> Unit
+    ): Bitmap {
+        ensureInit()
+        val project = projectRepository.getProjectById(projectId) ?: error("Project $projectId not found")
+        val template = templateRepository.getTemplateById(project.templateId) ?: error("Template ${project.templateId} not found")
+        val sketch = loadBitmap(project.sketchPath)
+        
+        val acceptedIds = project.acceptedSuggestionIds.split(",").filter { it.isNotBlank() }.toSet()
+        val allSuggestions: List<com.mawaai.love.app.design.ai.suggestions.Suggestion> = project.suggestionsJson?.let {
+            val type = object : com.google.gson.reflect.TypeToken<List<com.mawaai.love.app.design.ai.suggestions.Suggestion>>() {}.type
+            com.google.gson.Gson().fromJson(it, type)
+        } ?: emptyList()
+        val acceptedSuggestions = allSuggestions.filter { it.id in acceptedIds }
+
+        onProgress(ProcessingStage.Init)
+        val renderPrompt = promptBuilder.build(template, project.colorOverride, acceptedSuggestions)
+        
+        onProgress(ProcessingStage.Stylizing)
+        // For Phase 5, we use Cloudflare img2img for the heavy lifting of "rendering" the sketch 
+        // into a clean design based on template intelligence.
+        val cf = cloudflare.get()
+        val rendered = if (cf.isConfigured) {
+             cf.imageToImage(
+                input = sketch,
+                prompt = renderPrompt.toPromptString(),
+                strength = 0.45 // Higher strength than composite refinement to allow artistic interpretation
+            ) ?: throw IllegalStateException("Cloudflare render failed")
+        } else {
+            // Fallback to specialized local pipeline if cloud is down
+            processSpecialized(sketch, template.categoryId, null, "auto", null, null, onProgress)
+        }
+
+        onProgress(ProcessingStage.FinalPolish)
+        val polished = offlineEnhancer.enhance(rendered, template.categoryId)
+
+        // Save result
+        val path = saveBitmap(polished, "render_$projectId.png")
+        val finalProject = project.copy(
+            renderedPath = path,
+            renderPrompt = renderPrompt.toPromptString(),
+            renderedAt = System.currentTimeMillis(),
+            status = "RENDERED",
+            updatedAt = System.currentTimeMillis()
+        )
+        projectRepository.updateProject(finalProject)
+        
+        onProgress(ProcessingStage.Done)
+        return polished
+    }
+
+    override suspend fun updateProjectColor(projectId: String, colorHex: String?) {
+        val project = projectRepository.getProjectById(projectId) ?: return
+        val updated = project.copy(
+            colorOverride = colorHex,
+            updatedAt = System.currentTimeMillis()
+        )
+        projectRepository.updateProject(updated)
+    }
+
+    private fun loadBitmap(path: String): Bitmap {
+        return BitmapFactory.decodeFile(path) ?: error("Failed to load bitmap at $path")
+    }
+
+    private fun saveBitmap(bitmap: Bitmap, fileName: String): String {
+        val file = java.io.File(appContext.cacheDir, fileName)
+        java.io.FileOutputStream(file).use { 
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+        }
+        return file.absolutePath
+    }
 
     override fun isReady(): Boolean {
         ensureInit()

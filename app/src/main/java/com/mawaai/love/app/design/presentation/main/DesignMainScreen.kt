@@ -21,6 +21,7 @@ import com.mawaai.love.app.design.presentation.common.DesignSurface
 import com.mawaai.love.app.design.presentation.common.DesignTopBar
 import com.mawaai.love.app.design.canvas.ui.DesignCanvasScreen
 import com.mawaai.love.app.design.presentation.canvas.CanvasRecommendationsScreen
+import com.mawaai.love.app.design.presentation.flow.CreativeIntelligenceScreen
 import com.mawaai.love.app.design.presentation.flow.CustomizeScreen
 import com.mawaai.love.app.design.presentation.flow.InputMethodScreen
 import com.mawaai.love.app.design.showcase.ui.ShowcaseScreen
@@ -153,6 +154,15 @@ fun DesignMainScreen(onExit: () -> Unit) {
                             SuggestionsScreen(
                                 nav = innerNav,
                                 sessionId = entry.arguments?.getString("sessionId") ?: ""
+                            )
+                        }
+                        composable(
+                            route = DesignRoute.Intelligence.route,
+                            arguments = listOf(navArgument("projectId") { type = NavType.StringType })
+                        ) { entry ->
+                            CreativeIntelligenceScreen(
+                                nav = innerNav,
+                                projectId = entry.arguments?.getString("projectId") ?: ""
                             )
                         }
                         composable(

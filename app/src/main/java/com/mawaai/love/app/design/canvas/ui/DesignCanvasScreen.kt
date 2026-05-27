@@ -93,12 +93,16 @@ fun DesignCanvasScreen(
                     // Save the drawing AND pin it as the session's processed
                     // image so the template gallery can composite it onto any
                     // wall / hand / abaya template right away.
+                    viewModel.setOnProjectCreated { projectId ->
+                        nav.navigate(DesignRoute.Intelligence.create(projectId))
+                    }
                     viewModel.saveArtwork(
                         title = artworkTitle.ifBlank { "Template Pick" },
                         categoryId = categoryId ?: "general",
                         subTypeId = subTypeId,
                         sessionId = sessionId
                     ) { _ ->
+                        // This path is used when no project is created (legacy)
                         nav.navigate(DesignRoute.TemplateGallery.create(sessionId))
                     }
                 },

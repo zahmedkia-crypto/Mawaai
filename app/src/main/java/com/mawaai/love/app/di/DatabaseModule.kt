@@ -4,6 +4,10 @@ import android.content.Context
 import androidx.room.Room
 import com.mawaai.love.app.data.dao.*
 import com.mawaai.love.app.data.database.MawaaiDatabase
+import com.mawaai.love.app.data.database.MawaaiMigrations
+import com.mawaai.love.app.data.database.dao.ProductMockupDao
+import com.mawaai.love.app.data.database.dao.ProjectDao
+import com.mawaai.love.app.data.database.dao.TemplateDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -22,7 +26,9 @@ object DatabaseModule {
             context,
             MawaaiDatabase::class.java,
             "mawaai_db"
-        ).build()
+        )
+        .addMigrations(*MawaaiMigrations.ALL)
+        .build()
     }
 
     @Provides
@@ -42,4 +48,13 @@ object DatabaseModule {
 
     @Provides
     fun provideCountdownDao(db: MawaaiDatabase): CountdownDao = db.countdownDao()
+
+    @Provides
+    fun provideTemplateDao(db: MawaaiDatabase): TemplateDao = db.templateDao()
+
+    @Provides
+    fun provideProjectDao(db: MawaaiDatabase): ProjectDao = db.projectDao()
+
+    @Provides
+    fun provideProductMockupDao(db: MawaaiDatabase): ProductMockupDao = db.productMockupDao()
 }

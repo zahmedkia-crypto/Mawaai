@@ -4,18 +4,38 @@ import android.graphics.Bitmap
 import com.mawaai.love.app.design.domain.model.FabricTone
 import com.mawaai.love.app.design.domain.model.SkinTone
 
+import com.mawaai.love.app.design.ai.analysis.SketchAnalysis
+import com.mawaai.love.app.design.ai.suggestions.Suggestion
+
 interface AIEngine {
     fun isReady(): Boolean
     val openCvAvailable: Boolean
     val subjectSegmenterAvailable: Boolean
 
     /**
-     * True when at least one cloud text-to-image provider is configured.
-     * UI surfaces (e.g. a "generate from description" entry point) can
-     * gate themselves on this flag so they hide cleanly when the user
-     * hasn't supplied any cloud keys.
+     * Phase 3: Analyzes the sketch in a project using vision models.
+     * Persistence is handled internally via [ProjectRepository].
      */
-    val cloudTextToImageAvailable: Boolean
+    suspend fun analyzeProject(projectId: String): SketchAnalysis
+
+    /**
+     * Phase 4: Generates suggestions based on analysis and template.
+     */
+    suspend fun generateSuggestions(projectId: String): List<Suggestion>
+
+    /**
+     * Phase 5: Renders the final high-quality design using the full
+     * Creative Studio intelligence pipeline.
+     */
+    suspend fun renderProject(
+        projectId: String,
+        onProgress: (ProcessingStage) -> Unit
+    ): Bitmap
+
+    /**
+     * Phase 7: Applies color override or traditional palette refinement.
+     */
+    suspend fun updateProjectColor(projectId: String, colorHex: String?)
 
     suspend fun processSpecialized(
         input: Bitmap,

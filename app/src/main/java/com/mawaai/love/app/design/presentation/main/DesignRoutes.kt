@@ -19,6 +19,9 @@ sealed class DesignRoute(val route: String) {
     object Suggestions : DesignRoute("design/flow/suggestions/{sessionId}") {
         fun create(sessionId: String) = "design/flow/suggestions/$sessionId"
     }
+    object Intelligence : DesignRoute("design/flow/intelligence/{projectId}") {
+        fun create(projectId: String) = "design/flow/intelligence/$projectId"
+    }
     object StyleSelect : DesignRoute("design/flow/style/{sessionId}") {
         fun create(sessionId: String) = "design/flow/style/$sessionId"
     }

@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mawaai.love.app.data.repository.ArtworkRepository
+import com.mawaai.love.app.data.repository.ProjectRepository
 import com.mawaai.love.app.design.canvas.engine.CanvasEngine
 import com.mawaai.love.app.design.canvas.engine.ExportEngine
 import com.mawaai.love.app.design.canvas.model.BrushPresetCatalog
@@ -25,6 +26,7 @@ import javax.inject.Inject
 class DesignCanvasViewModel @Inject constructor(
     @ApplicationContext context: android.content.Context,
     private val artworkRepository: ArtworkRepository,
+    private val projectRepository: ProjectRepository,
     private val sessionStore: DesignSessionStore
 ) : ViewModel() {
 
@@ -155,12 +157,29 @@ class DesignCanvasViewModel @Inject constructor(
                 categoryId = categoryId,
                 subTypeId = subTypeId
             )
-            flat.recycle()
+            
+            // Bridge to Project-based AI Flow (Phase 3 & 4)
             if (sessionId != null) {
                 sessionStore.setProcessedImage(sessionId, android.net.Uri.fromFile(cached))
+                
+                // Create or find project for this session to trigger intelligence flow
+                val s = sessionStore.get(sessionId)
+                val templateId = s?.selectedTemplateId ?: "default"
+                val projectId = projectRepository.createProject(templateId, cached.absolutePath)
+                
+                // Update session or return project ID for navigation
+                onProjectCreated(projectId)
+            } else {
+                onSaved(id)
             }
-            onSaved(id)
+            
+            flat.recycle()
         }
+    }
+
+    private var onProjectCreated: (String) -> Unit = {}
+    fun setOnProjectCreated(callback: (String) -> Unit) {
+        onProjectCreated = callback
     }
 
     fun resolveSession(sessionId: String): Triple<String?, String?, Boolean> {

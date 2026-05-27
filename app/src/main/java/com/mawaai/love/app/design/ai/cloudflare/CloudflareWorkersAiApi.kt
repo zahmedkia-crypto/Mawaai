@@ -39,4 +39,28 @@ interface CloudflareWorkersAiApi {
         @Header("Authorization") authorization: String,
         @Body body: CloudflareGenerateRequest
     ): Response<ResponseBody>
+
+    /**
+     * Text generation (LLM) endpoint.
+     */
+    @POST("client/v4/accounts/{account}/ai/run/{model}")
+    @Headers("Content-Type: application/json")
+    suspend fun generateText(
+        @Path("account") accountId: String,
+        @Path("model", encoded = true) model: String,
+        @Header("Authorization") authorization: String,
+        @Body body: CloudflareTextRequest
+    ): Response<CloudflareAiResponse>
+
+    /**
+     * Vision (LLaVA) endpoint.
+     */
+    @POST("client/v4/accounts/{account}/ai/run/{model}")
+    @Headers("Content-Type: application/json")
+    suspend fun analyzeVision(
+        @Path("account") accountId: String,
+        @Path("model", encoded = true) model: String,
+        @Header("Authorization") authorization: String,
+        @Body body: CloudflareVisionRequest
+    ): Response<CloudflareAiResponse>
 }

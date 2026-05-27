@@ -14,6 +14,8 @@ import com.mawaai.love.app.ui.memories.MemoryDetailScreen
 import com.mawaai.love.app.ui.letters.LettersScreen
 import com.mawaai.love.app.ui.letters.ComposeLetterScreen
 import com.mawaai.love.app.ui.letters.LetterDetailScreen
+import com.mawaai.love.app.ui.settings.AiProviderSettingsScreen
+import com.mawaai.love.app.ui.settings.AiProviderSettingsViewModel
 import com.mawaai.love.app.ui.settings.SettingsScreen
 import com.mawaai.love.app.ui.mood.MoodScreen
 import com.mawaai.love.app.design.presentation.main.DesignMainScreen
@@ -37,6 +39,7 @@ sealed class Screen(val route: String) {
     }
     object Mood : Screen("mood")
     object Settings : Screen("settings")
+    object AiSettings : Screen("ai_settings")
     object Design : Screen("design")
 }
 
@@ -145,8 +148,14 @@ fun MawaaiNavGraph(navController: NavHostController) {
 
         composable(Screen.Settings.route) {
             SettingsScreen(
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onNavigateToAiProviders = { navController.navigate(Screen.AiSettings.route) }
             )
+        }
+
+        composable(Screen.AiSettings.route) {
+            val aiViewModel: AiProviderSettingsViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+            AiProviderSettingsScreen(viewModel = aiViewModel)
         }
 
         composable(Screen.Design.route) {

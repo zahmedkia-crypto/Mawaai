@@ -3,6 +3,8 @@ package com.mawaai.love.app.di
 import com.mawaai.love.app.design.ai.gateway.ProviderId
 import com.mawaai.love.app.design.ai.gateway.TextProvider
 import com.mawaai.love.app.design.ai.gateway.VisionProvider
+import com.mawaai.love.app.design.ai.gateway.providers.CloudflareTextProvider
+import com.mawaai.love.app.design.ai.gateway.providers.CloudflareVisionProvider
 import com.mawaai.love.app.design.ai.gateway.providers.StubTextProvider
 import com.mawaai.love.app.design.ai.gateway.providers.StubVisionProvider
 import com.mawaai.love.app.design.ai.groq.GroqTextProvider
@@ -50,6 +52,18 @@ abstract class GatewayModule {
     @Singleton
     abstract fun bindGroqText(impl: GroqTextProvider): TextProvider
 
+    // ───── Real providers (Cloudflare — E7.MT-038) ─────
+
+    @Binds
+    @IntoSet
+    @Singleton
+    abstract fun bindCloudflareVision(impl: CloudflareVisionProvider): VisionProvider
+
+    @Binds
+    @IntoSet
+    @Singleton
+    abstract fun bindCloudflareText(impl: CloudflareTextProvider): TextProvider
+
     /**
      * Static `@Provides` lives in a companion object so it coexists with the
      * abstract `@Binds` above in the same module.
@@ -73,12 +87,6 @@ abstract class GatewayModule {
         @Provides
         @IntoSet
         @Singleton
-        fun provideCloudflareVisionStub(): VisionProvider =
-            StubVisionProvider(ProviderId.CLOUDFLARE_WORKERS_AI, "wired in MT-038")
-
-        @Provides
-        @IntoSet
-        @Singleton
         fun provideHuggingFaceVisionStub(): VisionProvider =
             StubVisionProvider(ProviderId.HUGGINGFACE, "deferred (slow batch only)")
 
@@ -95,12 +103,6 @@ abstract class GatewayModule {
         @Singleton
         fun provideOpenRouterTextStub(): TextProvider =
             StubTextProvider(ProviderId.OPENROUTER, "wired alongside MT-019")
-
-        @Provides
-        @IntoSet
-        @Singleton
-        fun provideCloudflareTextStub(): TextProvider =
-            StubTextProvider(ProviderId.CLOUDFLARE_WORKERS_AI, "wired in MT-038")
 
         @Provides
         @IntoSet

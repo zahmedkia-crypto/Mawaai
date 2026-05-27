@@ -76,7 +76,14 @@ class CloudflareWorkersAiClient @Inject constructor(
         // compose-refine flow to integrate a freshly composited design
         // into the underlying template (fabric folds, lighting, edge
         // blending) without losing the spatial layout. ~3-6s inference.
-        IMG2IMG("@cf/runwayml/stable-diffusion-v1-5-img2img")
+        IMG2IMG("@cf/runwayml/stable-diffusion-v1-5-img2img"),
+
+        // LLaVA v1.5 7B — vision-language model. Used for surface
+        // detection and design analysis.
+        LLAVA("@cf/llava-hf/llava-1.5-7b-hf"),
+
+        // Llama 3.3 70B — high quality text generation.
+        LLAMA_3_3_70B("@cf/meta/llama-3.3-70b-instruct")
     }
 
     /**
@@ -220,6 +227,76 @@ class CloudflareWorkersAiClient @Inject constructor(
             ?: return@withContext null
         cacheStore(cacheKey, responseBytes)
         bitmap
+    }
+
+    /**
+     * Text generation using Llama 3.3 70B (or specified [model]).
+     */
+    suspend fun generateText(
+        prompt: String,
+        systemPrompt: String? = null,
+        model: Model = Model.LLAMA_3_3_70B
+    ): String? = withContext(Dispatchers.IO) {
+        if (!isConfigured) return@withContext null
+
+        val messages = mutableListOf<CloudflareMessage>()
+        if (systemPrompt != null) {
+            messages.add(CloudflareMessage("system", systemPrompt))
+        }
+        messages.add(CloudflareMessage("user", prompt))
+
+        try {
+            val response = api.generateText(
+                accountId = BuildConfig.CLOUDFLARE_ACCOUNT_ID,
+                model = model.path,
+                authorization = "Bearer ${BuildConfig.CLOUDFLARE_API_TOKEN}",
+                body = CloudflareTextRequest(messages = messages)
+            )
+            if (!response.isSuccessful) {
+                Log.w(TAG, "CF text failed: ${response.code()} ${response.errorBody()?.string()}")
+                return@withContext null
+            }
+            response.body()?.result?.response
+        } catch (e: Throwable) {
+            Log.w(TAG, "CF text threw", e)
+            null
+        }
+    }
+
+    /**
+     * Vision analysis using LLaVA 1.5.
+     */
+    suspend fun analyzeVision(
+        prompt: String,
+        image: Bitmap,
+        model: Model = Model.LLAVA
+    ): String? = withContext(Dispatchers.IO) {
+        if (!isConfigured) return@withContext null
+
+        // CF LLaVA expects the image as a list of integers (bytes)
+        val stream = ByteArrayOutputStream()
+        image.compress(Bitmap.CompressFormat.JPEG, 80, stream)
+        val imageBytes = stream.toByteArray().map { it.toInt() and 0xFF }
+
+        try {
+            val response = api.analyzeVision(
+                accountId = BuildConfig.CLOUDFLARE_ACCOUNT_ID,
+                model = model.path,
+                authorization = "Bearer ${BuildConfig.CLOUDFLARE_API_TOKEN}",
+                body = CloudflareVisionRequest(
+                    prompt = prompt,
+                    image = imageBytes
+                )
+            )
+            if (!response.isSuccessful) {
+                Log.w(TAG, "CF vision failed: ${response.code()} ${response.errorBody()?.string()}")
+                return@withContext null
+            }
+            response.body()?.result?.response
+        } catch (e: Throwable) {
+            Log.w(TAG, "CF vision threw", e)
+            null
+        }
     }
 
     /** Img2img is sized to 512×512 — SD-1.5's native resolution.

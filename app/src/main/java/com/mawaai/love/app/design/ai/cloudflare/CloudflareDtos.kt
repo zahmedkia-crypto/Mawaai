@@ -36,3 +36,45 @@ data class CloudflareGenerateRequest(
     @SerializedName("image_b64") val imageB64: String? = null,
     @SerializedName("strength") val strength: Double? = null
 )
+
+/**
+ * Request for text-generation models (LLMs).
+ */
+data class CloudflareTextRequest(
+    @SerializedName("messages") val messages: List<CloudflareMessage>,
+    @SerializedName("max_tokens") val maxTokens: Int? = 1024,
+    @SerializedName("stream") val stream: Boolean = false
+)
+
+data class CloudflareMessage(
+    @SerializedName("role") val role: String,
+    @SerializedName("content") val content: String
+)
+
+/**
+ * Request for vision-language models (LLaVA).
+ */
+data class CloudflareVisionRequest(
+    @SerializedName("prompt") val prompt: String,
+    @SerializedName("image") val image: List<Int>, // Workers AI LLaVA expects [Int] for the image
+    @SerializedName("max_tokens") val maxTokens: Int? = 512
+)
+
+/**
+ * Standard response envelope for text/vision models.
+ */
+data class CloudflareAiResponse(
+    @SerializedName("result") val result: CloudflareAiResult?,
+    @SerializedName("success") val success: Boolean,
+    @SerializedName("errors") val errors: List<CloudflareAiError>?,
+    @SerializedName("messages") val messages: List<String>?
+)
+
+data class CloudflareAiResult(
+    @SerializedName("response") val response: String?
+)
+
+data class CloudflareAiError(
+    @SerializedName("code") val code: Int,
+    @SerializedName("message") val message: String
+)

@@ -56,7 +56,32 @@ class ProcessingViewModel @Inject constructor(
     fun start(sessionId: String) {
         if (job?.isActive == true) return
         job = viewModelScope.launch {
-            runPipeline(sessionId)
+            // Check if it's a Project ID (Phase 5) or Session ID (Phase 1/2)
+            if (sessionId.startsWith("session_") || sessionStore.get(sessionId) != null) {
+                runPipeline(sessionId)
+            } else {
+                runProjectRender(sessionId)
+            }
+        }
+    }
+
+    private suspend fun runProjectRender(projectId: String) {
+        _state.update { it.copy(stage = ProcessingStage.Scanning) }
+        try {
+            val result = aiEngine.renderProject(projectId) { stage ->
+                publishStage(stage)
+            }
+            
+            val outputUri = withContext(Dispatchers.IO) {
+                persistBitmap(result, "render-$projectId")
+            }
+            
+            // For project-based flow, we might want to store the result in the project entity too
+            // and maybe navigate to a different result screen or the same one with projectId
+            _state.update { it.copy(stage = ProcessingStage.Done) }
+            _nav.trySend(ProcessingNavEvent.NavigateToResult)
+        } catch (t: Throwable) {
+            _state.update { it.copy(stage = ProcessingStage.Failed(t)) }
         }
     }
 
