@@ -1,25 +1,258 @@
 {
-  "_doc": "Optional per-template overrides. Each entry's id must match the filename without extension. quad: [[x0,y0],[x1,y1],[x2,y2],[x3,y3]] in normalized [0..1] coordinates of the base bitmap, ordered top-left, top-right, bottom-right, bottom-left. Templates not listed here use the category defaults from TemplateCompositor (walls: NORMAL @ 0.95, 12% inset).",
+  "_doc": "Optional per-template overrides. Each entry's id must match the filename without extension. quad: [[x0,y0],[x1,y1],[x2,y2],[x3,y3]] in normalized [0..1] coordinates of the base bitmap, ordered top-left, top-right, bottom-right, bottom-left. Templates not listed here use the category defaults from TemplateCompositor (walls: NORMAL @ 0.95, 12% inset). | NEW: polygon: [[x0,y0],...,[xN,yN]] in normalized [0..1] coordinates — fine-grained outline of the placement region. Renderer should prefer polygon over quad when both are present; falls back to quad if polygon is missing/invalid.",
   "templates": [
     {
       "id": "wall_mockup_1",
-      "quad": [[0.26, 0.14], [0.80, 0.14], [0.80, 0.72], [0.26, 0.72]]
+      "polygon": [
+        [
+          0.0911,
+          0.0
+        ],
+        [
+          0.98,
+          0.0
+        ],
+        [
+          0.98,
+          0.35
+        ],
+        [
+          0.98,
+          0.7
+        ],
+        [
+          0.0911,
+          0.7
+        ],
+        [
+          0.0911,
+          0.35
+        ]
+      ],
+      "quad": [
+        [
+          0.0911,
+          0.0
+        ],
+        [
+          0.98,
+          0.0
+        ],
+        [
+          0.98,
+          0.7
+        ],
+        [
+          0.0911,
+          0.7
+        ]
+      ],
+      "blend": "OVERLAY",
+      "alpha": 0.85,
+      "authoring_status": "auto_polygon"
     },
     {
       "id": "wall_mockup_2",
-      "quad": [[0.18, 0.12], [0.82, 0.12], [0.82, 0.72], [0.18, 0.72]]
+      "polygon": [
+        [
+          0.02,
+          0.0
+        ],
+        [
+          0.98,
+          0.0
+        ],
+        [
+          0.98,
+          0.35
+        ],
+        [
+          0.98,
+          0.7
+        ],
+        [
+          0.02,
+          0.7
+        ],
+        [
+          0.02,
+          0.35
+        ]
+      ],
+      "quad": [
+        [
+          0.02,
+          0.0
+        ],
+        [
+          0.98,
+          0.0
+        ],
+        [
+          0.98,
+          0.7
+        ],
+        [
+          0.02,
+          0.7
+        ]
+      ],
+      "blend": "OVERLAY",
+      "alpha": 0.85,
+      "authoring_status": "auto_polygon"
     },
     {
       "id": "wall_mockup_3",
-      "quad": [[0.20, 0.14], [0.80, 0.14], [0.80, 0.74], [0.20, 0.74]]
+      "polygon": [
+        [
+          0.02,
+          0.0
+        ],
+        [
+          0.98,
+          0.0
+        ],
+        [
+          0.98,
+          0.35
+        ],
+        [
+          0.98,
+          0.7
+        ],
+        [
+          0.02,
+          0.7
+        ],
+        [
+          0.02,
+          0.35
+        ]
+      ],
+      "quad": [
+        [
+          0.02,
+          0.0
+        ],
+        [
+          0.98,
+          0.0
+        ],
+        [
+          0.98,
+          0.7
+        ],
+        [
+          0.02,
+          0.7
+        ]
+      ],
+      "blend": "OVERLAY",
+      "alpha": 0.85,
+      "authoring_status": "auto_polygon"
     },
     {
       "id": "wall_mockup_4",
-      "quad": [[0.26, 0.12], [0.80, 0.12], [0.80, 0.72], [0.26, 0.72]]
+      "polygon": [
+        [
+          0.0664,
+          0.0
+        ],
+        [
+          0.98,
+          0.0
+        ],
+        [
+          0.98,
+          0.35
+        ],
+        [
+          0.98,
+          0.7
+        ],
+        [
+          0.0664,
+          0.7
+        ],
+        [
+          0.0664,
+          0.35
+        ]
+      ],
+      "quad": [
+        [
+          0.0664,
+          0.0
+        ],
+        [
+          0.98,
+          0.0
+        ],
+        [
+          0.98,
+          0.7
+        ],
+        [
+          0.0664,
+          0.7
+        ]
+      ],
+      "blend": "OVERLAY",
+      "alpha": 0.85,
+      "authoring_status": "auto_polygon"
     },
     {
       "id": "wall_mockup_5",
-      "quad": [[0.22, 0.16], [0.78, 0.16], [0.78, 0.74], [0.22, 0.74]]
+      "polygon": [
+        [
+          0.0911,
+          0.0
+        ],
+        [
+          0.9258,
+          0.0
+        ],
+        [
+          0.9258,
+          0.35
+        ],
+        [
+          0.9258,
+          0.7
+        ],
+        [
+          0.0911,
+          0.7
+        ],
+        [
+          0.0911,
+          0.35
+        ]
+      ],
+      "quad": [
+        [
+          0.0911,
+          0.0
+        ],
+        [
+          0.9258,
+          0.0
+        ],
+        [
+          0.9258,
+          0.7
+        ],
+        [
+          0.0911,
+          0.7
+        ]
+      ],
+      "blend": "OVERLAY",
+      "alpha": 0.85,
+      "authoring_status": "auto_polygon"
     }
-  ]
+  ],
+  "_authoring_status_legend": {
+    "auto_polygon": "Polygon auto-detected via OpenCV. Verify on-device; refine using polygon_region_editor.html when needed."
+  }
 }

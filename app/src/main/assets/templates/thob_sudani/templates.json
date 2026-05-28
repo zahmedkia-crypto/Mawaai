@@ -1,120 +1,342 @@
 {
-  "_doc": "Per-template overrides for the Sudanese thob category. Each entry's id must match the filename (without extension) of a .jpg/.jpeg/.png in this folder. quad: [[x0,y0],[x1,y1],[x2,y2],[x3,y3]] in normalised [0..1] coordinates, ordered top-left, top-right, bottom-right, bottom-left. The current entries point at programmatically generated placeholders (see scripts/generate_thob_placeholders.py); replace the .jpg files with real model photos and the same quad will warp the user's artwork onto the new fabric.",
+  "_doc": "Per-template overrides for the Sudanese thob category. Each entry's id must match the filename (without extension) of a .jpg/.jpeg/.png in this folder. quad: [[x0,y0],[x1,y1],[x2,y2],[x3,y3]] in normalised [0..1] coordinates, ordered top-left, top-right, bottom-right, bottom-left. The current entries point at programmatically generated placeholders (see scripts/generate_thob_placeholders.py); replace the .jpg files with real model photos and the same quad will warp the user's artwork onto the new fabric. | NEW: polygon: [[x0,y0],...,[xN,yN]] in normalized [0..1] coordinates — fine-grained outline of the placement region. Renderer should prefer polygon over quad when both are present; falls back to quad if polygon is missing/invalid.",
   "templates": [
     {
-      "id": "toub_raqma_1",
+      "id": "toub_farda_1",
+      "polygon": [
+        [
+          0.23,
+          0.08
+        ],
+        [
+          0.23,
+          0.235
+        ],
+        [
+          0.4167,
+          0.2575
+        ],
+        [
+          0.2983,
+          0.2762
+        ],
+        [
+          0.23,
+          0.9187
+        ],
+        [
+          0.7667,
+          0.9187
+        ],
+        [
+          0.7017,
+          0.2762
+        ],
+        [
+          0.5833,
+          0.2737
+        ],
+        [
+          0.7667,
+          0.235
+        ],
+        [
+          0.7667,
+          0.08
+        ]
+      ],
       "quad": [
         [
-          0.3,
-          0.32
+          0.23,
+          0.08
         ],
         [
-          0.7,
-          0.32
+          0.7667,
+          0.08
         ],
         [
-          0.8,
-          0.86
+          0.7667,
+          0.9187
         ],
         [
-          0.2,
-          0.86
+          0.23,
+          0.9187
         ]
       ],
       "blend": "FABRIC_REALISTIC",
-      "alpha": 0.82
+      "alpha": 0.82,
+      "authoring_status": "auto_polygon"
     },
     {
       "id": "toub_fatla_1",
-      "quad": [
+      "polygon": [
         [
-          0.3,
-          0.32
+          0.4733,
+          0.1888
+        ],
+        [
+          0.425,
+          0.2188
+        ],
+        [
+          0.415,
+          0.275
+        ],
+        [
+          0.2983,
+          0.2775
+        ],
+        [
+          0.23,
+          0.68
+        ],
+        [
+          0.23,
+          0.9187
+        ],
+        [
+          0.7667,
+          0.9187
+        ],
+        [
+          0.765,
+          0.6575
         ],
         [
           0.7,
-          0.32
+          0.275
         ],
         [
-          0.8,
-          0.86
+          0.585,
+          0.275
         ],
         [
-          0.2,
-          0.86
+          0.5617,
+          0.2037
+        ]
+      ],
+      "quad": [
+        [
+          0.23,
+          0.1888
+        ],
+        [
+          0.7667,
+          0.1888
+        ],
+        [
+          0.7667,
+          0.9187
+        ],
+        [
+          0.23,
+          0.9187
         ]
       ],
       "blend": "FABRIC_REALISTIC",
-      "alpha": 0.85
+      "alpha": 0.82,
+      "authoring_status": "auto_polygon"
     },
     {
-      "id": "toub_farda_1",
-      "quad": [
+      "id": "toub_raqma_1",
+      "polygon": [
         [
-          0.3,
-          0.32
+          0.4733,
+          0.1888
+        ],
+        [
+          0.415,
+          0.275
+        ],
+        [
+          0.2983,
+          0.2775
+        ],
+        [
+          0.23,
+          0.6825
+        ],
+        [
+          0.23,
+          0.9187
+        ],
+        [
+          0.7667,
+          0.9187
+        ],
+        [
+          0.7667,
+          0.6663
         ],
         [
           0.7,
-          0.32
+          0.275
         ],
         [
-          0.8,
-          0.86
+          0.585,
+          0.275
         ],
         [
-          0.2,
-          0.86
+          0.5633,
+          0.2075
         ]
       ],
-      "blend": "OVERLAY",
-      "alpha": 0.78
-    },
-    {
-      "id": "toub_zaraf_1",
       "quad": [
         [
-          0.3,
-          0.32
+          0.23,
+          0.1888
         ],
         [
-          0.7,
-          0.32
+          0.7667,
+          0.1888
         ],
         [
-          0.8,
-          0.86
+          0.7667,
+          0.9187
         ],
         [
-          0.2,
-          0.86
+          0.23,
+          0.9187
         ]
       ],
       "blend": "FABRIC_REALISTIC",
-      "alpha": 0.8
+      "alpha": 0.82,
+      "authoring_status": "auto_polygon"
     },
     {
       "id": "toub_wedding_1",
+      "polygon": [
+        [
+          0.23,
+          0.08
+        ],
+        [
+          0.23,
+          0.2625
+        ],
+        [
+          0.295,
+          0.2637
+        ],
+        [
+          0.23,
+          0.6462
+        ],
+        [
+          0.23,
+          0.9187
+        ],
+        [
+          0.7667,
+          0.9187
+        ],
+        [
+          0.7667,
+          0.6388
+        ],
+        [
+          0.71,
+          0.2637
+        ],
+        [
+          0.7667,
+          0.2625
+        ],
+        [
+          0.7667,
+          0.08
+        ]
+      ],
       "quad": [
         [
-          0.3,
-          0.32
+          0.23,
+          0.08
+        ],
+        [
+          0.7667,
+          0.08
+        ],
+        [
+          0.7667,
+          0.9187
+        ],
+        [
+          0.23,
+          0.9187
+        ]
+      ],
+      "blend": "FABRIC_REALISTIC",
+      "alpha": 0.82,
+      "authoring_status": "auto_polygon"
+    },
+    {
+      "id": "toub_zaraf_1",
+      "polygon": [
+        [
+          0.48,
+          0.1875
+        ],
+        [
+          0.425,
+          0.2188
+        ],
+        [
+          0.415,
+          0.275
+        ],
+        [
+          0.2983,
+          0.2775
+        ],
+        [
+          0.23,
+          0.9187
+        ],
+        [
+          0.7667,
+          0.9187
+        ],
+        [
+          0.7667,
+          0.6775
         ],
         [
           0.7,
-          0.32
+          0.275
         ],
         [
-          0.8,
-          0.86
+          0.585,
+          0.275
         ],
         [
-          0.2,
-          0.86
+          0.5633,
+          0.2075
         ]
       ],
-      "blend": "OVERLAY",
-      "alpha": 0.82
+      "quad": [
+        [
+          0.23,
+          0.1875
+        ],
+        [
+          0.7667,
+          0.1875
+        ],
+        [
+          0.7667,
+          0.9187
+        ],
+        [
+          0.23,
+          0.9187
+        ]
+      ],
+      "blend": "FABRIC_REALISTIC",
+      "alpha": 0.82,
+      "authoring_status": "auto_polygon"
     }
-  ]
+  ],
+  "_authoring_status_legend": {
+    "auto_polygon": "Polygon auto-detected via OpenCV. Verify on-device; refine using polygon_region_editor.html when needed."
+  }
 }
