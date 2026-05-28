@@ -1,6 +1,80 @@
+# Dependabot configuration
+#
+# Auto-creates PRs that bump dependencies. Tuned for Mawaai:
+# - Gradle ecosystem (the version catalog is the single source of truth).
+# - Weekly cadence; we don't want a Dependabot tsunami on Monday morning.
+# - Major-version bumps grouped per provider so a Compose / Lifecycle bump
+#   shows up as ONE PR instead of fifteen.
+
 version: 2
 updates:
+  # ─── Gradle / version catalog ───────────────────────────────────────────
   - package-ecosystem: gradle
     directory: /
     schedule:
       interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Africa/Khartoum
+    open-pull-requests-limit: 10
+    reviewers:
+      - zahmedkia-crypto
+    commit-message:
+      prefix: "build"
+      include: scope
+    labels:
+      - dependencies
+      - gradle
+    groups:
+      compose:
+        patterns:
+          - "androidx.compose*"
+          - "androidx.activity:activity-compose"
+        update-types:
+          - minor
+          - patch
+      hilt:
+        patterns:
+          - "com.google.dagger:*"
+          - "androidx.hilt:*"
+        update-types:
+          - minor
+          - patch
+      room:
+        patterns:
+          - "androidx.room:*"
+        update-types:
+          - minor
+          - patch
+      androidx-runtime:
+        patterns:
+          - "androidx.lifecycle:*"
+          - "androidx.navigation:*"
+        update-types:
+          - minor
+          - patch
+      networking:
+        patterns:
+          - "com.squareup.okhttp3:*"
+          - "com.squareup.retrofit2:*"
+          - "com.google.code.gson:*"
+        update-types:
+          - minor
+          - patch
+    ignore:
+      - dependency-name: "com.google.android.gms:play-services-mlkit-subject-segmentation"
+      - dependency-name: "org.opencv:opencv"
+
+  # ─── GitHub Actions ────────────────────────────────────────────────────
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+      day: first-monday
+      time: "09:00"
+      timezone: Africa/Khartoum
+    commit-message:
+      prefix: ci
+    labels:
+      - dependencies
+      - github-actions
