@@ -1,7 +1,10 @@
 package com.mawaai.love.app.design.ai
 
+import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.util.Log
+import com.google.gson.Gson
 import com.google.mlkit.vision.segmentation.subject.SubjectSegmentation
 import com.google.mlkit.vision.segmentation.subject.SubjectSegmenterOptions
 import com.mawaai.love.app.core.opencv.OpenCVBootstrap
@@ -39,6 +42,7 @@ import com.mawaai.love.app.design.ai.render.RenderPromptBuilder
 import com.mawaai.love.app.design.ai.suggestions.SuggestionsClient
 import com.mawaai.love.app.design.domain.model.FabricTone
 import com.mawaai.love.app.design.domain.model.SkinTone
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -99,7 +103,15 @@ class AIEngineImpl @Inject constructor(
     // generator on the romantic side) can call it directly via
     // [generateRomanticImage].
     private val removeBg: dagger.Lazy<RemoveBgClient>,
-    private val cloudflare: dagger.Lazy<CloudflareWorkersAiClient>
+    private val cloudflare: dagger.Lazy<CloudflareWorkersAiClient>,
+
+    // MT-AIEI-001 (2026-05-28): fix compile error — appContext and
+    // BitmapFactory were used by `renderProject` / `loadBitmap` /
+    // `saveBitmap` without being injected. Hilt qualifier and JSON
+    // ser/des helper also injected here so existing Gson() instantiations
+    // (three call sites) share the DI-provided Gson singleton.
+    @ApplicationContext private val appContext: Context,
+    private val gson: Gson,
 ) : AIEngine {
 
     @Volatile private var initialized = false
@@ -135,12 +147,12 @@ class AIEngineImpl @Inject constructor(
         val template = templateRepository.getTemplateById(project.templateId) ?: error("Template ${project.templateId} not found")
         val sketch = loadBitmap(project.sketchPath)
         val analysis = project.analysisJson?.let { 
-            com.google.gson.Gson().fromJson(it, com.mawaai.love.app.design.ai.analysis.SketchAnalysis::class.java) 
+            gson.fromJson(it, com.mawaai.love.app.design.ai.analysis.SketchAnalysis::class.java) 
         } ?: analyzeProject(projectId)
 
         val suggestions = suggestionsClient.generateSuggestions(sketch, template, analysis).getOrThrow()
         val updated = project.copy(
-            suggestionsJson = com.google.gson.Gson().toJson(suggestions),
+            suggestionsJson = gson.toJson(suggestions),
             updatedAt = System.currentTimeMillis()
         )
         projectRepository.updateProject(updated)
@@ -159,7 +171,7 @@ class AIEngineImpl @Inject constructor(
         val acceptedIds = project.acceptedSuggestionIds.split(",").filter { it.isNotBlank() }.toSet()
         val allSuggestions: List<com.mawaai.love.app.design.ai.suggestions.Suggestion> = project.suggestionsJson?.let {
             val type = object : com.google.gson.reflect.TypeToken<List<com.mawaai.love.app.design.ai.suggestions.Suggestion>>() {}.type
-            com.google.gson.Gson().fromJson(it, type)
+            gson.fromJson(it, type)
         } ?: emptyList()
         val acceptedSuggestions = allSuggestions.filter { it.id in acceptedIds }
 
@@ -169,17 +181,25 @@ class AIEngineImpl @Inject constructor(
         onProgress(ProcessingStage.Stylizing)
         // For Phase 5, we use Cloudflare img2img for the heavy lifting of "rendering" the sketch 
         // into a clean design based on template intelligence.
+        // MT-AIEI-002 (2026-05-28): the previous version threw
+        // IllegalStateException when Cloudflare returned null, which contradicted
+        // the file-level design contract ("a cloud call returning null is
+        // **always** treated as not configured / error / fallback to local"). A
+        // transient CF outage would therefore crash the entire render for any
+        // user who had a CF key set. Coalesce the configured-but-failed path
+        // and the not-configured path into the same on-device fallback.
         val cf = cloudflare.get()
-        val rendered = if (cf.isConfigured) {
-             cf.imageToImage(
-                input = sketch,
-                prompt = renderPrompt.toPromptString(),
-                strength = 0.45 // Higher strength than composite refinement to allow artistic interpretation
-            ) ?: throw IllegalStateException("Cloudflare render failed")
-        } else {
-            // Fallback to specialized local pipeline if cloud is down
-            processSpecialized(sketch, template.categoryId, null, "auto", null, null, onProgress)
-        }
+        val cloudRendered = if (cf.isConfigured) {
+            tryOrNull("Cloudflare img2img renderProject failed") {
+                cf.imageToImage(
+                    input = sketch,
+                    prompt = renderPrompt.toPromptString(),
+                    strength = 0.45 // Higher strength than composite refinement to allow artistic interpretation
+                )
+            }
+        } else null
+        val rendered = cloudRendered
+            ?: processSpecialized(sketch, template.categoryId, null, "auto", null, null, onProgress)
 
         onProgress(ProcessingStage.FinalPolish)
         val polished = offlineEnhancer.enhance(rendered, template.categoryId)
@@ -269,13 +289,14 @@ class AIEngineImpl @Inject constructor(
         // public openCvAvailable getter stays accurate.
         openCvOk = OpenCVBootstrap.ensureLoaded()
 
-        segmenterOk = runCatching {
-            val options = SubjectSegmenterOptions.Builder()
-                .enableForegroundConfidenceMask()
-                .enableForegroundBitmap()
-                .build()
-            SubjectSegmentation.getClient(options)
-        }.onFailure { Log.e(TAG, "Subject segmenter init failed", it) }.isSuccess
+        // MT-AIEI-003 (2026-05-28): defer to SegmentationProcessor.isAvailable
+        // (PR #14). The previous code constructed a throw-away SubjectSegmenter
+        // client here just to test if ML Kit was reachable — wasteful, and
+        // double-initialised the on-device model whenever processSpecialized
+        // actually used segmentation. After PR #14, SegmentationProcessor wraps
+        // the same getClient() call in runCatching and exposes the result via
+        // `isAvailable`, so we read that flag directly.
+        segmenterOk = segmentation.isAvailable
         Log.i(TAG, "SubjectSegmentation client ready = $segmenterOk")
 
         initialized = true
