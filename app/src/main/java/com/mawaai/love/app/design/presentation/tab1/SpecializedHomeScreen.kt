@@ -114,6 +114,7 @@ private fun CategoryTile(
         "abaya" -> R.drawable.ic_abaya
         "walls" -> R.drawable.ic_walls
         "thob_sudani" -> R.drawable.ic_thob_sudani
+        "ceramic" -> R.drawable.ic_ceramic
         else -> null
     }
     val accent = runCatching { Color(android.graphics.Color.parseColor(category.accentColor)) }
