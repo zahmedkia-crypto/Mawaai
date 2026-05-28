@@ -91,6 +91,21 @@ class ProjectRepository @Inject constructor(
     }
 
     /**
+     * MT-025: persist the comma-separated set of suggestion IDs the user
+     * has accepted, so RenderPromptBuilder.build() reads them on the next
+     * render and the renderer (MT-027) appends their preview hints to the
+     * final prompt.
+     */
+    suspend fun saveAcceptedSuggestions(id: String, csvIds: String) = withContext(Dispatchers.IO) {
+        val project = dao.getProjectById(id) ?: return@withContext
+        val updated = project.copy(
+            acceptedSuggestionIds = csvIds,
+            updatedAt = System.currentTimeMillis()
+        )
+        dao.updateProject(updated)
+    }
+
+    /**
      * MT-029: persist a freshly produced render -- the absolute file path
      * (written by RenderFileStore) plus the exact prompt that produced it.
      * Sets renderedAt = now and bumps updatedAt so any Flow observer sees
