@@ -4,6 +4,7 @@ import com.mawaai.love.app.design.ai.gateway.ProviderId
 import com.mawaai.love.app.design.ai.gateway.TextProvider
 import com.mawaai.love.app.design.ai.gateway.VisionProvider
 import com.mawaai.love.app.design.ai.gateway.providers.CloudflareTextProvider
+import com.mawaai.love.app.design.ai.gateway.providers.OpenRouterTextProvider
 import com.mawaai.love.app.design.ai.gateway.providers.CloudflareVisionProvider
 import com.mawaai.love.app.design.ai.gateway.providers.StubTextProvider
 import com.mawaai.love.app.design.ai.gateway.providers.StubVisionProvider
@@ -31,7 +32,7 @@ import javax.inject.Singleton
  * | ProviderId               | Vision impl                      | Text impl                      |
  * |--------------------------|----------------------------------|--------------------------------|
  * | GEMINI                   | StubVisionProvider (MT-019)      | StubTextProvider (MT-019)      |
- * | OPENROUTER               | StubVisionProvider (MT-019)      | StubTextProvider (MT-019)      |
+ * | OPENROUTER               | StubVisionProvider (deferred)    | OpenRouterTextProvider (MT-012)|
  * | GROQ                     | GroqVisionProvider               | GroqTextProvider               |
  * | CLOUDFLARE_WORKERS_AI    | StubVisionProvider (MT-038)      | StubTextProvider (MT-038)      |
  * | HUGGINGFACE              | StubVisionProvider (deferred)    | StubTextProvider (deferred)    |
@@ -63,6 +64,13 @@ abstract class GatewayModule {
     @IntoSet
     @Singleton
     abstract fun bindCloudflareText(impl: CloudflareTextProvider): TextProvider
+
+    // ───── Real providers (OpenRouter — MT-012) ─────
+
+    @Binds
+    @IntoSet
+    @Singleton
+    abstract fun bindOpenRouterText(impl: OpenRouterTextProvider): TextProvider
 
     /**
      * Static `@Provides` lives in a companion object so it coexists with the
@@ -97,12 +105,6 @@ abstract class GatewayModule {
         @Singleton
         fun provideGeminiTextStub(): TextProvider =
             StubTextProvider(ProviderId.GEMINI, "wired alongside MT-019")
-
-        @Provides
-        @IntoSet
-        @Singleton
-        fun provideOpenRouterTextStub(): TextProvider =
-            StubTextProvider(ProviderId.OPENROUTER, "wired alongside MT-019")
 
         @Provides
         @IntoSet
