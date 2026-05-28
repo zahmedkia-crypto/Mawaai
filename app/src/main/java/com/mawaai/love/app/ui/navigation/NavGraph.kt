@@ -18,6 +18,8 @@ import com.mawaai.love.app.ui.settings.AiProviderSettingsScreen
 import com.mawaai.love.app.ui.settings.AiProviderSettingsViewModel
 import com.mawaai.love.app.ui.settings.SettingsScreen
 import com.mawaai.love.app.ui.mood.MoodScreen
+import com.mawaai.love.app.ui.design.suggestions.SuggestionCardsScreen
+import com.mawaai.love.app.ui.design.suggestions.SuggestionCardsViewModel
 import com.mawaai.love.app.design.presentation.main.DesignMainScreen
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
@@ -41,6 +43,9 @@ sealed class Screen(val route: String) {
     object Settings : Screen("settings")
     object AiSettings : Screen("ai_settings")
     object Design : Screen("design")
+    object SuggestionCards : Screen("suggestion_cards/{projectId}") {
+        fun createRoute(projectId: String) = "suggestion_cards/$projectId"
+    }
 }
 
 @Composable
@@ -161,6 +166,20 @@ fun MawaaiNavGraph(navController: NavHostController) {
         composable(Screen.Design.route) {
             DesignMainScreen(
                 onExit = { navController.popBackStack() }
+            )
+        }
+
+        composable(
+            route = Screen.SuggestionCards.route,
+            arguments = listOf(navArgument("projectId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val projectId = backStackEntry.arguments?.getString("projectId") ?: ""
+            val suggestionsViewModel: SuggestionCardsViewModel =
+                androidx.hilt.navigation.compose.hiltViewModel()
+            SuggestionCardsScreen(
+                projectId = projectId,
+                viewModel = suggestionsViewModel,
+                onAcceptanceSubmitted = { navController.popBackStack() }
             )
         }
     }
