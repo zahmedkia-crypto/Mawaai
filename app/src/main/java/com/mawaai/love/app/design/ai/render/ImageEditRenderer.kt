@@ -48,32 +48,33 @@ class ImageEditRenderer @Inject constructor(
         return chain.renderFromSketch(sketch = sketch, prompt = flattenPrompt(renderPrompt))
     }
 
-    /**
-     * Collapse the multi-field [RenderPrompt] into the single text prompt the
-     * downstream img2img model expects.
-     *
-     * Field order is the verbatim port of the Lovable TS pipeline
-     * (`render.functions.ts` ~ L243-254):
-     *   structure -> templateIntelligence -> baseDirection -> palette ->
-     *   colorOverride -> refinements -> terminator.
-     *
-     * Null / blank fields are silently dropped so the model never sees empty
-     * preamble fragments.
-     */
-    internal fun flattenPrompt(p: RenderPrompt): String = listOfNotNull(
-        p.structurePreservation,
-        p.templateIntelligence,
-        p.baseDirection,
-        p.palette?.let { "Honor the traditional palette where natural: $it." },
-        p.colorOverride,
-        p.refinements,
-        FINAL_IMAGE_TERMINATOR,
-    )
-        .filter { it.isNotBlank() }
-        .joinToString(separator = " ")
-
-    private companion object {
+    companion object {
         const val FINAL_IMAGE_TERMINATOR =
             "Final image only -- no annotations, labels, text, watermarks, or framing."
+
+        /**
+         * Collapse the multi-field [RenderPrompt] into the single text prompt the
+         * downstream img2img model expects.
+         *
+         * Field order is the verbatim port of the Lovable TS pipeline
+         * (`render.functions.ts` ~ L243-254):
+         *   structure -> templateIntelligence -> baseDirection -> palette ->
+         *   colorOverride -> refinements -> terminator.
+         *
+         * Null / blank fields are silently dropped so the model never sees empty
+         * preamble fragments. Pure function -- safe to unit-test without
+         * constructing the renderer.
+         */
+        internal fun flattenPrompt(p: RenderPrompt): String = listOfNotNull(
+            p.structurePreservation,
+            p.templateIntelligence,
+            p.baseDirection,
+            p.palette?.let { "Honor the traditional palette where natural: $it." },
+            p.colorOverride,
+            p.refinements,
+            FINAL_IMAGE_TERMINATOR,
+        )
+            .filter { it.isNotBlank() }
+            .joinToString(separator = " ")
     }
 }
