@@ -74,6 +74,41 @@ class ProjectRepository @Inject constructor(
         dao.updateProject(updated)
     }
 
+    /**
+     * MT-028: persist the user-selected color override (hex, e.g. "#B8860B")
+     * so the next render reads it through RenderPromptBuilder.
+     *
+     * Pass `null` to clear the override and fall back to the template's
+     * traditional palette.
+     */
+    suspend fun saveColorOverride(id: String, hex: String?) = withContext(Dispatchers.IO) {
+        val project = dao.getProjectById(id) ?: return@withContext
+        val updated = project.copy(
+            colorOverride = hex,
+            updatedAt = System.currentTimeMillis()
+        )
+        dao.updateProject(updated)
+    }
+
+    /**
+     * MT-029: persist a freshly produced render -- the absolute file path
+     * (written by RenderFileStore) plus the exact prompt that produced it.
+     * Sets renderedAt = now and bumps updatedAt so any Flow observer sees
+     * the change.
+     */
+    suspend fun saveRender(id: String, renderedPath: String, renderPrompt: String) =
+        withContext(Dispatchers.IO) {
+            val project = dao.getProjectById(id) ?: return@withContext
+            val now = System.currentTimeMillis()
+            val updated = project.copy(
+                renderedPath = renderedPath,
+                renderPrompt = renderPrompt,
+                renderedAt = now,
+                updatedAt = now,
+            )
+            dao.updateProject(updated)
+        }
+
     suspend fun saveProject(project: ProjectEntity) = dao.insertProject(project)
     suspend fun updateProject(project: ProjectEntity) = dao.updateProject(project)
     suspend fun deleteProject(id: String) = dao.deleteProjectById(id)
