@@ -1,0 +1,51 @@
+{
+  "_doc": "Ceramic templates (MT-043). Quads are normalized [0..1] coordinates on the base bitmap, top-left, top-right, bottom-right, bottom-left. Blend mode for ceramic is NORMAL @ 0.92 alpha so the print sits ON the glaze rather than under it. Templates not listed here fall back to the category default (ceramic: NORMAL @ 0.90, 12% inset).",
+  "_authoring_status_legend": {
+    "default_estimate": "Surface-default quad; MUST be refined per-template on-device before release.",
+    "authored": "Manually authored from the actual template image; verified visually.",
+    "masked": "Authored + has matching <id>.mask.png for ceramic-region integration."
+  },
+  "_surface_defaults": {
+    "plate": "Circular dinner-plate centre, NORMAL @ 0.92, 18% inset from rim. Use authored quads in seed set; the centre disc is the safe zone.",
+    "tile": "Square decorative tile face, NORMAL @ 0.94, 8% inset for grout line. Quads track the tile bevel; do not bleed into the grout.",
+    "mug": "Cylindrical mug body, NORMAL @ 0.88, follows mug curvature. The quad must wrap the visible front face only; back-of-mug placement is unsupported on-device."
+  },
+  "templates": [
+    {
+      "id": "plate_1",
+      "quad": [
+        [0.22, 0.26],
+        [0.78, 0.26],
+        [0.78, 0.78],
+        [0.22, 0.78]
+      ],
+      "blend": "NORMAL",
+      "alpha": 0.92,
+      "authoring_status": "default_estimate"
+    },
+    {
+      "id": "tile_1",
+      "quad": [
+        [0.10, 0.10],
+        [0.90, 0.10],
+        [0.90, 0.90],
+        [0.10, 0.90]
+      ],
+      "blend": "NORMAL",
+      "alpha": 0.94,
+      "authoring_status": "default_estimate"
+    },
+    {
+      "id": "mug_1",
+      "quad": [
+        [0.32, 0.30],
+        [0.68, 0.32],
+        [0.66, 0.70],
+        [0.34, 0.68]
+      ],
+      "blend": "NORMAL",
+      "alpha": 0.88,
+      "authoring_status": "default_estimate"
+    }
+  ]
+}
