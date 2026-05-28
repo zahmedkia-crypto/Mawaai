@@ -5408,4 +5408,108 @@ they need real credentials, real hardware, or a real keystore.
 
 ---
 
+### 2026-05-28 — Creative-Studio → Mawaai integration sweep (11 commits)
+
+Closed EPICs E2, E3, E4, E5, E6 from `integration/INTEGRATION_PLAN.md`, plus
+the asset half of E9. The Lovable Creative Studio AI pipeline (henna /
+abaya / thobe / toub / ceramic / wall renders) is now wired into the
+existing romantic Mawaai shell end-to-end on FREE provider tiers
+(Groq Llama 3.2 Vision, HuggingFace ControlNet, Cloudflare Workers AI,
+OpenRouter free models). Zero paid API surface remains in the rendering
+path.
+
+Commits (master):
+
+| Commit | EPIC.MT | Summary |
+|---|---|---|
+| 93d05a9 | E2 · MT-018 | SketchAnalysisRoundTripTest — Gson parity with Lovable Zod schema (4 tests) |
+| 8ce359b | E2 · MT-020 | FallbackAnalysisTest — deterministic heuristic output (4 tests) |
+| 7ad78e7 | E2 · MT-021 | ProjectDao.observeProjectById + repo Flow observer (+4 LOC) |
+| be96ce0 | E4 · MT-027 | ImageEditRenderer + ImageEditFallbackChain bridging RenderPrompt → HuggingFace ControlNet (free img2img) |
+| fd86ba1 | MT-027 fix | Drop MockK from ImageEditRendererTest; move flattenPrompt to companion |
+| 832a96d | E4 · MT-028+29 | ProjectRepository.saveColorOverride + saveRender; RenderFileStore.kt for {filesDir}/renders/ PNG output |
+| 09448d0 | E5 · MT-30+32 | HeuristicQualityCheck pure-function pre-check; renderer returns QualityGateBlocked when !passed (5 tests) |
+| 42e4ac3 | E4/E6/E9 · MT-34+35+43 | MockupCompositor (1024² scene), ExportPipeline (MediaStore), ceramic/templates.json (3 surfaces) |
+| a86200f | E3 · MT-025 | SuggestionCardsScreen + SuggestionCardsViewModel + ProjectRepository.saveAcceptedSuggestions |
+| ef9219c | E3 · MT-025 nav | Screen.SuggestionCards route + composable() entry in NavGraph |
+| a2f7791 | E9 · ceramic PNG | Pillow-generated placeholder PNGs (plate_1, tile_1, mug_1) under assets/templates/ceramic/ |
+
+Net diff: +1,564 LOC of Kotlin / JSON; 3 binary PNG assets; 16 new unit
+tests across SketchAnalysisRoundTrip, FallbackAnalysis,
+ImageEditRenderer, and HeuristicQualityCheck.
+
+### Architecture / scope notes
+
+- **Discovered duplicate.** Session commit `42e4ac3` introduced
+  `design/export/ExportPipeline.kt` before realising
+  `design/render/ImageExporter.kt` already shipped the same functionality
+  (and more — `ImageExporter` supports PNG **and** JPEG plus a custom
+  subdirectory parameter). To avoid orphaning the freshly-committed
+  call sites, `ExportPipeline` has been collapsed into a thin
+  `@Deprecated` `@Singleton` wrapper that delegates to `ImageExporter`.
+  New code MUST inject `ImageExporter` directly. Migration plan:
+  follow-up commit deletes `design/export/ExportPipeline.kt` once
+  call sites are switched.
+- **No duplicate for `MockupCompositor`.** `design/render/TemplateCompositor.kt`
+  warps user **artwork onto a Template** (the surface, e.g. an abaya
+  panel); `design/mockup/MockupCompositor.kt` composes a **rendered
+  design into a marketing Mockup scene** (e.g. a bridal palm on a
+  cushion). Different layers, both kept.
+- **`TemplateAssetManager.kt` is category-generic.** It scans
+  `templates/$categoryId` for any categoryId the caller passes;
+  no static category list to amend. MT-044 (ceramic wiring) is thus
+  effectively closed by virtue of the ceramic JSON + 3 placeholder
+  PNGs committed in `42e4ac3` and `a2f7791` plus the pre-existing
+  CERAMIC seed rows in `MockupSeed.kt`. Adding ceramic to whatever
+  top-level category gallery / picker enumerates the supported
+  categories is the only remaining wiring — that lookup wasn't
+  located during this session.
+- **MT-039 (Provider switcher Settings UI) was already implemented**
+  before this session (`ui/settings/AiProviderSettingsScreen.kt` +
+  `AiProviderSettingsViewModel.kt`). It's the Compose-style
+  reference that the new MT-025 screen mirrors.
+
+### Verification expectations
+
+```bash
+git pull origin master
+./gradlew :app:clean assembleDebug      # MUST PASS
+./gradlew :app:lint                     # zero new lint warnings in changed files
+./gradlew :app:testDebugUnitTest        # 16 new tests, all green
+```
+
+Per-MT smoke greps (all MUST pass):
+
+```bash
+# Anti-pattern guards
+git diff master~11..master | grep -E "AIza|hf_|sk-or-v1|cfut_|gsk_"     # empty (no committed keys)
+git diff master~11..master | grep "Map<String,\s*Any>"                  # empty
+git diff master~11..master | grep -E "io\.mockk|org\.mockito"          # empty
+git diff master~11..master | grep -E "package\.json|pnpm-lock|turbo"    # empty
+
+# Ceramic catalog wired
+ls app/src/main/assets/templates/ceramic/
+# Expect: templates.json + plate_1.png + tile_1.png + mug_1.png
+```
+
+### Follow-ups (not in this session)
+
+- Local Gradle smoke build on a real workstation. The sandbox cannot run
+  the Android toolchain.
+- Replace the 3 Pillow-generated ceramic PNGs with real photographic
+  templates and add matching `<id>.mask.png` files. Flip
+  `authoring_status` from `default_estimate` to `masked` in the JSON.
+- Find whatever drives the top-level category enumeration (likely a
+  JSON in `assets/` or a Kotlin constant in `design/showcase/` or
+  `design/domain/`) and add `"ceramic"` so the new catalog reaches
+  the design hub UI.
+- Migrate any in-flight callers off `design/export/ExportPipeline.kt`
+  to `design/render/ImageExporter.kt`, then delete the wrapper.
+- Wire `Screen.SuggestionCards.createRoute(projectId)` from whichever
+  screen sits between Analysis and Render in the design flow
+  (likely a new "Refine" button in the result preview).
+
+
+---
+
 *End of PROJECT_LOG.md — keep this file truthful and current.*
