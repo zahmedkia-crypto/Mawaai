@@ -13,3 +13,40 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# ─── MT-020 (2026-05-28): editor / AI-tool configurations ────────────────
+# Each developer's tooling configuration leaks personal preferences and
+# editor state into the repo. None of these belong in source control. See
+# docs/security-runbook.md § 6 for the one-time cleanup commands the
+# maintainer must run to *untrack* the already-committed copies (this file
+# only prevents NEW additions; existing tracked files stay tracked until
+# `git rm -r --cached` is run).
+
+# JetBrains IDEs (IntelliJ, Android Studio) — leave only the few files that
+# are intentionally shared (e.g. runConfigurations/, codeStyles/).
+.idea/
+!.idea/runConfigurations/
+!.idea/codeStyles/
+
+# VS Code
+.vscode/
+
+# Cursor IDE
+.cursor/
+.cursorrules
+
+# JetBrains AI Assistant
+.aiassistant/
+
+# Devin
+.devin/
+
+# Common editor swap files
+*.swp
+*.swo
+*~
+
+# OS junk
+Thumbs.db
+ehthumbs.db
+Desktop.ini
