@@ -66,6 +66,20 @@
         { "id": "toub_zaraf",  "nameAr": "توب الزراف",  "nameEn": "Zaraf (Silk)" }
       ],
       "styles": []
+    },
+    {
+      "id": "ceramic",
+      "nameAr": "السيراميك",
+      "nameEn": "Ceramics",
+      "descriptionAr": "تصاميم على السيراميك: الأطباق، البلاط، والأكواب على الفخار والخزف",
+      "iconKey": "ceramic",
+      "accentColor": "#8A4A2D",
+      "subTypes": [
+        { "id": "ceramic_plate", "nameAr": "طبق سيراميك", "nameEn": "Display Plate" },
+        { "id": "ceramic_tile",  "nameAr": "بلاط زخرفي",  "nameEn": "Decorative Tile" },
+        { "id": "ceramic_mug",   "nameAr": "كوب فخاري",   "nameEn": "Mug" }
+      ],
+      "styles": []
     }
   ],
   "conversionStyles": [
