@@ -33,6 +33,7 @@ class ProjectRepository @Inject constructor(
 ) {
     fun getAllProjects(): Flow<List<ProjectEntity>> = dao.getAllProjects()
     suspend fun getProjectById(id: String): ProjectEntity? = dao.getProjectById(id)
+    fun observeProjectById(id: String): Flow<ProjectEntity?> = dao.observeProjectById(id)
     
     suspend fun createProject(templateId: String, sketchPath: String): String = withContext(Dispatchers.IO) {
         val id = UUID.randomUUID().toString()
