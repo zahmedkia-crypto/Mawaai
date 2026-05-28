@@ -1,0 +1,169 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+# Cancel previous runs of the same workflow on a branch — saves CI minutes when
+# a developer force-pushes a fix-up commit.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # Build + JVM tests + lint. Runs on every push / PR. Cheap (~5–8 min).
+  # ─────────────────────────────────────────────────────────────────────────
+  build-and-test:
+    name: assemble + unit tests + lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Need full history for any future schema-diff checks; cheap on a
+          # repo this size.
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          # Cache the Gradle user home, including the toolchain download from
+          # MT-021 (the JDK that the build provisions via `auto-download=true`).
+          cache-read-only: ${{ github.ref != 'refs/heads/master' }}
+
+      - name: Stub local.properties for CI
+        # Provide blank API keys so BuildConfig fields compile. The clients all
+        # guard on `isConfigured` and degrade to fallbacks (Gemini → OpenRouter,
+        # remove.bg → ML Kit) when keys are empty, so CI builds + tests don't
+        # need real keys.
+        run: |
+          cat > local.properties <<'EOF'
+          # Stub keys for CI. Real keys live in each developer's local.properties
+          # and never in the repo (see docs/security-runbook.md).
+          GEMINI_API_KEY=
+          HUGGINGFACE_API_KEY=
+          CLOUDFLARE_ACCOUNT_ID=
+          CLOUDFLARE_API_TOKEN=
+          REMOVE_BG_API_KEY=
+          OPENROUTER_API_KEY=
+          GROQ_API_KEY=
+          PEXELS_API_KEY=
+          EOF
+
+      - name: assembleDebug
+        run: ./gradlew :app:assembleDebug --stacktrace
+
+      - name: JVM unit tests
+        run: ./gradlew :app:testDebugUnitTest --stacktrace
+
+      - name: lint
+        run: ./gradlew :app:lintDebug --stacktrace
+        # Lint failures will fail the build. If the team wants a soft signal
+        # instead, change to `continue-on-error: true` here.
+
+      - name: Upload test reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-${{ github.run_id }}
+          path: |
+            app/build/reports/tests/
+            app/build/reports/lint-results-debug.html
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Schema-export guard. Catches the MT-007/P0-A failure mode where a developer
+  # bumps `@Database(version = N)` without committing the new schema JSON.
+  # ─────────────────────────────────────────────────────────────────────────
+  schema-guard:
+    name: Room schema export check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: []
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Stub local.properties
+        run: |
+          touch local.properties
+
+      - name: Regenerate schema files
+        run: ./gradlew :app:kspDebugKotlin --stacktrace
+
+      - name: Fail if schema files are out of date
+        run: |
+          if [ -n "$(git status --porcelain app/schemas/)" ]; then
+            echo "::error::Room schema files are out of date. Run ./gradlew :app:assembleDebug locally and commit app/schemas/<version>.json."
+            git status --porcelain app/schemas/
+            git diff app/schemas/
+            exit 1
+          fi
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Instrumented tests on emulator. Expensive (~20 min for boot + tests).
+  # Runs only on master pushes by default; opt-in for PRs via the `ci:emulator`
+  # label.
+  # ─────────────────────────────────────────────────────────────────────────
+  instrumented-tests:
+    name: connectedDebugAndroidTest (API 35 emulator)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    needs: build-and-test
+    if: |
+      github.event_name == 'push' ||
+      contains(github.event.pull_request.labels.*.name, 'ci:emulator')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Stub local.properties
+        run: touch local.properties
+
+      - name: Run instrumented tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          script: |
+            ./gradlew :app:connectedDebugAndroidTest --stacktrace
+
+      - name: Upload instrumented test reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: instrumented-test-reports-${{ github.run_id }}
+          path: app/build/reports/androidTests/
