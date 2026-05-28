@@ -90,9 +90,12 @@ class FallbackAnalysisTest {
         surfaceType = surfaceForName(name, category),
         description = null,
         referenceImageUrl = null,
-        traditionalPaletteCsv = "",
-        maxCoveragePct = 75,
+        assetPath = "templates/$category/$id.png",
+        zonesJson = "[]",
+        culturalRulesJson = "{}",
+        traditionalPaletteJson = "[]",
         primaryLight = primaryLight,
+        maxCoveragePct = 75,
     )
 
     /**
