@@ -13,6 +13,11 @@ interface AIEngine {
     val subjectSegmenterAvailable: Boolean
 
     /**
+     * True when a cloud text-to-image provider (e.g. Cloudflare) is configured.
+     */
+    val cloudTextToImageAvailable: Boolean
+
+    /**
      * Phase 3: Analyzes the sketch in a project using vision models.
      * Persistence is handled internally via [ProjectRepository].
      */

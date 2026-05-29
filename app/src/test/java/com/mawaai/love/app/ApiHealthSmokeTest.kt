@@ -9,7 +9,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
 import java.util.concurrent.TimeUnit
-import kotlin.test.assertTrue
+import org.junit.Assert.assertTrue
 
 /**
  * Opt-in live API smoke tests for Gemini, HuggingFace, Cloudflare Workers AI,

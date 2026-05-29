@@ -1,6 +1,8 @@
 package com.mawaai.love.app.design.ai
 
+import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.util.Log
 import com.google.mlkit.vision.segmentation.subject.SubjectSegmentation
 import com.google.mlkit.vision.segmentation.subject.SubjectSegmenterOptions
@@ -39,6 +41,7 @@ import com.mawaai.love.app.design.ai.render.RenderPromptBuilder
 import com.mawaai.love.app.design.ai.suggestions.SuggestionsClient
 import com.mawaai.love.app.design.domain.model.FabricTone
 import com.mawaai.love.app.design.domain.model.SkinTone
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -62,6 +65,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class AIEngineImpl @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val segmentation: SegmentationProcessor,
     private val edges: EdgeDetectionProcessor,
     private val styleTransfer: dagger.Lazy<StyleTransferProcessor>,
@@ -123,7 +127,7 @@ class AIEngineImpl @Inject constructor(
     override suspend fun analyzeProject(projectId: String): com.mawaai.love.app.design.ai.analysis.SketchAnalysis {
         val project = projectRepository.getProjectById(projectId) ?: error("Project $projectId not found")
         val template = templateRepository.getTemplateById(project.templateId) ?: error("Template ${project.templateId} not found")
-        val sketch = loadBitmap(project.sketchPath)
+        val sketch = loadBitmap(project.sketchPath ?: error("Sketch path is null for project $projectId"))
 
         val analysis = analysisClient.analyze(sketch, template).getOrThrow()
         projectRepository.saveAnalysis(projectId, analysis)
@@ -133,7 +137,7 @@ class AIEngineImpl @Inject constructor(
     override suspend fun generateSuggestions(projectId: String): List<com.mawaai.love.app.design.ai.suggestions.Suggestion> {
         val project = projectRepository.getProjectById(projectId) ?: error("Project $projectId not found")
         val template = templateRepository.getTemplateById(project.templateId) ?: error("Template ${project.templateId} not found")
-        val sketch = loadBitmap(project.sketchPath)
+        val sketch = loadBitmap(project.sketchPath ?: error("Sketch path is null for project $projectId"))
         val analysis = project.analysisJson?.let { 
             com.google.gson.Gson().fromJson(it, com.mawaai.love.app.design.ai.analysis.SketchAnalysis::class.java) 
         } ?: analyzeProject(projectId)
@@ -154,7 +158,7 @@ class AIEngineImpl @Inject constructor(
         ensureInit()
         val project = projectRepository.getProjectById(projectId) ?: error("Project $projectId not found")
         val template = templateRepository.getTemplateById(project.templateId) ?: error("Template ${project.templateId} not found")
-        val sketch = loadBitmap(project.sketchPath)
+        val sketch = loadBitmap(project.sketchPath ?: error("Sketch path is null for project $projectId"))
         
         val acceptedIds = project.acceptedSuggestionIds.split(",").filter { it.isNotBlank() }.toSet()
         val allSuggestions: List<com.mawaai.love.app.design.ai.suggestions.Suggestion> = project.suggestionsJson?.let {
@@ -178,11 +182,11 @@ class AIEngineImpl @Inject constructor(
             ) ?: throw IllegalStateException("Cloudflare render failed")
         } else {
             // Fallback to specialized local pipeline if cloud is down
-            processSpecialized(sketch, template.categoryId, null, "auto", null, null, onProgress)
+            processSpecialized(sketch, template.category, null, "auto", null, null, onProgress)
         }
 
         onProgress(ProcessingStage.FinalPolish)
-        val polished = offlineEnhancer.enhance(rendered, template.categoryId)
+        val polished = offlineEnhancer.enhance(rendered, template.category)
 
         // Save result
         val path = saveBitmap(polished, "render_$projectId.png")
@@ -213,7 +217,7 @@ class AIEngineImpl @Inject constructor(
     }
 
     private fun saveBitmap(bitmap: Bitmap, fileName: String): String {
-        val file = java.io.File(appContext.cacheDir, fileName)
+        val file = java.io.File(context.cacheDir, fileName)
         java.io.FileOutputStream(file).use { 
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
