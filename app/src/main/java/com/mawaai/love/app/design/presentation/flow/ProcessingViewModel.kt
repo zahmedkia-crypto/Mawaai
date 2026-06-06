@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.mawaai.love.app.design.ai.AIEngine
 import com.mawaai.love.app.design.ai.ProcessingStage
 import com.mawaai.love.app.design.data.repository.DesignSessionStore
+import com.mawaai.love.app.design.domain.model.DesignSession
 import com.mawaai.love.app.design.domain.model.FabricTone
 import com.mawaai.love.app.design.domain.model.SkinTone
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -56,7 +57,6 @@ class ProcessingViewModel @Inject constructor(
     fun start(sessionId: String) {
         if (job?.isActive == true) return
         job = viewModelScope.launch {
-            // Check if it's a Project ID (Phase 5) or Session ID (Phase 1/2)
             if (sessionId.startsWith("session_") || sessionStore.get(sessionId) != null) {
                 runPipeline(sessionId)
             } else {
@@ -71,13 +71,16 @@ class ProcessingViewModel @Inject constructor(
             val result = aiEngine.renderProject(projectId) { stage ->
                 publishStage(stage)
             }
-            
             val outputUri = withContext(Dispatchers.IO) {
                 persistBitmap(result, "render-$projectId")
             }
-            
-            // For project-based flow, we might want to store the result in the project entity too
-            // and maybe navigate to a different result screen or the same one with projectId
+            sessionStore.create(
+                DesignSession(
+                    id = projectId,
+                    processedImageUri = outputUri,
+                    isConverterFlow = true
+                )
+            )
             _state.update { it.copy(stage = ProcessingStage.Done) }
             _nav.trySend(ProcessingNavEvent.NavigateToResult)
         } catch (t: Throwable) {
@@ -171,8 +174,8 @@ class ProcessingViewModel @Inject constructor(
 
     private fun persistBitmap(bitmap: Bitmap, name: String): Uri {
         val dir = File(appContext.cacheDir, "design_results").apply { mkdirs() }
-        val file = File(dir, "$name-${System.currentTimeMillis()}.png")
-        FileOutputStream(file).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
-        return file.toUri()
+        val outFile = File(dir, "$name-${System.currentTimeMillis()}.png")
+        FileOutputStream(outFile).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        return outFile.toUri()
     }
 }
