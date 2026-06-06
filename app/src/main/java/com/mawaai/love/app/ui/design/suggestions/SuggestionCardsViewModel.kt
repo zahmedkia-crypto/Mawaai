@@ -3,6 +3,7 @@ package com.mawaai.love.app.ui.design.suggestions
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import com.mawaai.love.app.data.repository.ProjectRepository
 import com.mawaai.love.app.design.ai.suggestions.Suggestion
 import com.mawaai.love.app.design.ai.suggestions.SuggestionsResponse
@@ -100,11 +101,14 @@ class SuggestionCardsViewModel @Inject constructor(
 
     private fun parseSuggestions(json: String?): List<Suggestion> {
         if (json.isNullOrBlank()) return emptyList()
-        return try {
-            gson.fromJson(json, SuggestionsResponse::class.java).suggestions
-        } catch (_: Exception) {
-            emptyList()
-        }
+        val listType = object : TypeToken<List<Suggestion>>() {}.type
+        return runCatching {
+            gson.fromJson<List<Suggestion>>(json, listType)
+        }.getOrNull()
+            ?.takeIf { it.isNotEmpty() }
+            ?: runCatching {
+                gson.fromJson(json, SuggestionsResponse::class.java).suggestions
+            }.getOrDefault(emptyList())
     }
 
     private fun parseAcceptedCsv(csv: String?): Set<String> {
