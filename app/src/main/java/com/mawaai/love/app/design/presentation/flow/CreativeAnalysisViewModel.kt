@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.mawaai.love.app.data.repository.ProjectRepository
 import com.mawaai.love.app.design.ai.AIEngine
 import com.mawaai.love.app.design.ai.analysis.SketchAnalysis
+import com.mawaai.love.app.design.ai.suggestions.AiSuggestionEngine
 import com.mawaai.love.app.design.ai.suggestions.Suggestion
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,6 +26,7 @@ data class CreativeAnalysisState(
 @HiltViewModel
 class CreativeAnalysisViewModel @Inject constructor(
     private val aiEngine: AIEngine,
+    private val suggestionEngine: AiSuggestionEngine,
     private val projectRepository: ProjectRepository
 ) : ViewModel() {
 
@@ -35,18 +37,15 @@ class CreativeAnalysisViewModel @Inject constructor(
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
             try {
-                // Phase 3: Analysis
-                // Persistence is handled internally by AIEngine via ProjectRepository
                 val analysis = aiEngine.analyzeProject(projectId)
-                
-                // Phase 4: Suggestions
-                val suggestions = aiEngine.generateSuggestions(projectId)
-                
-                _state.update { 
+                val iteration = suggestionEngine.afterAnalysis(analysis)
+                projectRepository.saveSuggestions(projectId, iteration.suggestions)
+                _state.update {
                     it.copy(
                         isLoading = false,
                         analysis = analysis,
-                        suggestions = suggestions
+                        suggestions = iteration.suggestions,
+                        acceptedSuggestionIds = emptySet()
                     )
                 }
             } catch (e: Exception) {
@@ -69,13 +68,11 @@ class CreativeAnalysisViewModel @Inject constructor(
     fun applyAndContinue(projectId: String, onComplete: () -> Unit) {
         viewModelScope.launch {
             try {
-                val project = projectRepository.getProjectById(projectId) ?: return@launch
-                val updated = project.copy(
-                    acceptedSuggestionIds = _state.value.acceptedSuggestionIds.joinToString(","),
-                    status = "ANALYZED",
-                    updatedAt = System.currentTimeMillis()
+                projectRepository.saveSuggestions(
+                    id = projectId,
+                    suggestions = _state.value.suggestions,
+                    acceptedSuggestionIds = _state.value.acceptedSuggestionIds
                 )
-                projectRepository.updateProject(updated)
                 onComplete()
             } catch (e: Exception) {
                 _state.update { it.copy(error = "Failed to apply suggestions: ${e.message}") }
