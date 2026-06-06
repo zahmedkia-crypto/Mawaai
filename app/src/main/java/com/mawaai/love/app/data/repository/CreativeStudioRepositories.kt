@@ -12,6 +12,10 @@ import javax.inject.Singleton
 
 import com.google.gson.Gson
 import com.mawaai.love.app.design.ai.analysis.SketchAnalysis
+import com.mawaai.love.app.design.ai.suggestions.SatisfactionFeedback
+import com.mawaai.love.app.design.ai.suggestions.Suggestion
+import com.mawaai.love.app.design.ai.suggestions.SuggestionsResponse
+import com.mawaai.love.app.design.rendering.RenderAssessment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.UUID
@@ -69,6 +73,22 @@ class ProjectRepository @Inject constructor(
         val project = dao.getProjectById(id) ?: return@withContext
         val updated = project.copy(
             analysisJson = gson.toJson(analysis),
+            status = "ANALYZED",
+            updatedAt = System.currentTimeMillis()
+        )
+        dao.updateProject(updated)
+    }
+
+    suspend fun saveSuggestions(
+        id: String,
+        suggestions: List<Suggestion>,
+        acceptedSuggestionIds: Set<String> = emptySet()
+    ) = withContext(Dispatchers.IO) {
+        val project = dao.getProjectById(id) ?: return@withContext
+        val updated = project.copy(
+            suggestionsJson = gson.toJson(SuggestionsResponse(suggestions)),
+            acceptedSuggestionIds = acceptedSuggestionIds.joinToString(","),
+            status = "SUGGESTIONS_READY",
             updatedAt = System.currentTimeMillis()
         )
         dao.updateProject(updated)
@@ -100,6 +120,7 @@ class ProjectRepository @Inject constructor(
         val project = dao.getProjectById(id) ?: return@withContext
         val updated = project.copy(
             acceptedSuggestionIds = csvIds,
+            status = "REFINEMENT_SELECTED",
             updatedAt = System.currentTimeMillis()
         )
         dao.updateProject(updated)
@@ -119,7 +140,34 @@ class ProjectRepository @Inject constructor(
                 renderedPath = renderedPath,
                 renderPrompt = renderPrompt,
                 renderedAt = now,
+                status = "RENDERED",
                 updatedAt = now,
+            )
+            dao.updateProject(updated)
+        }
+
+    suspend fun saveRenderAssessment(id: String, assessment: RenderAssessment) =
+        withContext(Dispatchers.IO) {
+            val project = dao.getProjectById(id) ?: return@withContext
+            val updated = project.copy(
+                renderQualityJson = gson.toJson(assessment),
+                status = if (assessment.isProductionReady) "RENDER_READY" else "REFINEMENT_NEEDED",
+                updatedAt = System.currentTimeMillis()
+            )
+            dao.updateProject(updated)
+        }
+
+    suspend fun saveSatisfactionFeedback(id: String, feedback: SatisfactionFeedback) =
+        withContext(Dispatchers.IO) {
+            val project = dao.getProjectById(id) ?: return@withContext
+            val feedbackLine = "Refinement feedback: ${feedback.toSuggestionHint()}"
+            val updatedNotes = listOfNotNull(project.notes, feedbackLine)
+                .filter { it.isNotBlank() }
+                .joinToString(separator = "\n")
+            val updated = project.copy(
+                notes = updatedNotes,
+                status = if (feedback.closenessToIntentPct >= 95) "USER_APPROVED" else "REFINEMENT_NEEDED",
+                updatedAt = System.currentTimeMillis()
             )
             dao.updateProject(updated)
         }
