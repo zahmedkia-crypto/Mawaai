@@ -14,7 +14,6 @@ import com.google.gson.Gson
 import com.mawaai.love.app.design.ai.analysis.SketchAnalysis
 import com.mawaai.love.app.design.ai.suggestions.SatisfactionFeedback
 import com.mawaai.love.app.design.ai.suggestions.Suggestion
-import com.mawaai.love.app.design.ai.suggestions.SuggestionsResponse
 import com.mawaai.love.app.design.rendering.RenderAssessment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -86,7 +85,7 @@ class ProjectRepository @Inject constructor(
     ) = withContext(Dispatchers.IO) {
         val project = dao.getProjectById(id) ?: return@withContext
         val updated = project.copy(
-            suggestionsJson = gson.toJson(SuggestionsResponse(suggestions)),
+            suggestionsJson = gson.toJson(suggestions),
             acceptedSuggestionIds = acceptedSuggestionIds.joinToString(","),
             status = "SUGGESTIONS_READY",
             updatedAt = System.currentTimeMillis()
