@@ -27,8 +27,9 @@ import javax.inject.Singleton
  *
  * Mirrors the Lovable Creative Studio render flow from `lib/render.functions.ts`
  * -- structure preservation rule first, then template intelligence, then surface
- * direction, palette, color override, accepted refinements, and a terminator
- * forbidding annotations/labels/watermarks.
+ * direction, realism/material/camera constraints, palette, color override,
+ * accepted refinements, negative prompt, and a terminator forbidding
+ * annotations/labels/watermarks.
  */
 @Singleton
 class ImageEditRenderer @Inject constructor(
@@ -87,16 +88,16 @@ class ImageEditRenderer @Inject constructor(
 
     companion object {
         const val FINAL_IMAGE_TERMINATOR =
-            "Final image only -- no annotations, labels, text, watermarks, or framing."
+            "Final image only -- no annotations, labels, text, watermarks, UI chrome, borders, frames, or before/after panels."
 
         /**
          * Collapse the multi-field [RenderPrompt] into the single text prompt the
          * downstream img2img model expects.
          *
-         * Field order is the verbatim port of the Lovable TS pipeline
-         * (`render.functions.ts` ~ L243-254):
-         *   structure -> templateIntelligence -> baseDirection -> palette ->
-         *   colorOverride -> refinements -> terminator.
+         * Field order:
+         *   structure -> template intelligence -> surface direction -> realism
+         *   direction -> material physics -> camera/lighting -> palette ->
+         *   color override -> user refinements -> negative prompt -> terminator.
          *
          * Null / blank fields are silently dropped so the model never sees empty
          * preamble fragments. Pure function -- safe to unit-test without
@@ -106,10 +107,14 @@ class ImageEditRenderer @Inject constructor(
             p.structurePreservation,
             p.templateIntelligence,
             p.baseDirection,
+            p.realismDirection,
+            p.materialPhysics,
+            p.cameraAndLighting,
             p.palette?.let { "Honor the traditional palette where natural: $it." },
             p.colorOverride,
             p.refinements,
-            FINAL_IMAGE_TERMINATOR,
+            p.negativePrompt,
+            p.finalImageOnly.ifBlank { FINAL_IMAGE_TERMINATOR },
         )
             .filter { it.isNotBlank() }
             .joinToString(separator = " ")
