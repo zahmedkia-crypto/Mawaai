@@ -52,8 +52,6 @@ fun CreativeIntelligenceScreen(
                     Button(
                         onClick = {
                             viewModel.applyAndContinue(projectId) {
-                                // Transition to Phase 5: Processing/Render
-                                // For now, reuse Processing screen or define new high-fi render route
                                 nav.navigate(DesignRoute.Processing.create(projectId))
                             }
                         },
@@ -67,7 +65,11 @@ fun CreativeIntelligenceScreen(
                         shape = RoundedCornerShape(16.dp)
                     ) {
                         Text(
-                            text = "Accept & Render Design",
+                            text = if (state.acceptedSuggestionIds.isEmpty()) {
+                                "Render Original Design"
+                            } else {
+                                "Apply ${state.acceptedSuggestionIds.size} & Render"
+                            },
                             fontFamily = CairoFamily,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
@@ -107,12 +109,18 @@ fun CreativeIntelligenceScreen(
 
                     item {
                         Text(
-                            text = "AI Design Suggestions",
+                            text = "Choose up to 5 AI refinements",
                             fontFamily = CairoFamily,
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp,
                             color = MawaaiColors.DesignTextLight,
                             modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                        Text(
+                            text = "Select only the ideas that match what is in your mind. The renderer will preserve your drawing and apply the accepted refinements.",
+                            fontFamily = CairoFamily,
+                            fontSize = 13.sp,
+                            color = MawaaiColors.DesignHennaLight
                         )
                     }
 
@@ -149,7 +157,7 @@ private fun IntelligenceHeader() {
             )
         }
         Text(
-            text = "Phase 4: Cultural Refinement & Impact Analysis",
+            text = "AI coach: analyze, suggest, render, refine",
             fontFamily = CairoFamily,
             fontSize = 14.sp,
             color = MawaaiColors.DesignHennaLight
