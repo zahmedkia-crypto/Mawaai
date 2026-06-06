@@ -22,11 +22,15 @@ class RenderPromptBuilder @Inject constructor() {
             structurePreservation = "CRITICAL RULE: Preserve the exact spatial structure and composition of the user's sketch. The sketch is the authoritative layout. Do not move, rotate, or re-scale the primary elements unless they violate the masking rules.",
             templateIntelligence = templateIntelligencePrompt(template),
             baseDirection = SurfaceDirections.forProfile(profile),
+            realismDirection = RenderRealismPolicy.realismDirection(profile),
+            materialPhysics = RenderRealismPolicy.materialPhysics(profile),
+            cameraAndLighting = RenderRealismPolicy.cameraAndLighting(profile),
             palette = template.traditionalPaletteJson.takeIf { it.isNotBlank() },
-            colorOverride = colorOverride?.let { "OVERRIDE COLOR: Use the specific hex color $it for the primary design elements (e.g. the henna paste or the garment embroidery)." },
+            colorOverride = colorOverride?.let { "OVERRIDE COLOR: Use the specific hex color $it for the primary design elements while preserving realistic material response." },
             refinements = acceptedSuggestions.takeIf { it.isNotEmpty() }?.let { suggestions ->
-                "ACCEPTED REFINEMENTS: " + suggestions.joinToString("; ") { it.previewHint }
-            }
+                "USER-ACCEPTED REFINEMENTS: " + suggestions.joinToString("; ") { it.previewHint }
+            },
+            negativePrompt = RenderRealismPolicy.negativePrompt(profile)
         )
     }
 }
