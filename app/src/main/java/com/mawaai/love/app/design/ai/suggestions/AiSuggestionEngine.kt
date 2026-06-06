@@ -17,9 +17,11 @@ class AiSuggestionEngine @Inject constructor(
 
     suspend fun afterAnalysis(analysis: SketchAnalysis): SuggestionIteration {
         val fallback = fallbackLoop.afterAnalysis(analysis)
-        val prompt = buildAfterAnalysisPrompt(analysis)
-        val suggestions = generateFiveSuggestions(prompt, fallback.suggestions)
-        return fallback.copy(suggestions = suggestions)
+        val ai = requestSuggestions(
+            prompt = "Create exactly 5 selectable design improvements after this analysis: ${gson.toJson(analysis)}",
+            fallback = fallback.suggestions
+        )
+        return fallback.copy(suggestions = ai)
     }
 
     suspend fun afterRender(
@@ -28,100 +30,45 @@ class AiSuggestionEngine @Inject constructor(
         feedback: SatisfactionFeedback? = null
     ): SuggestionIteration {
         val fallback = fallbackLoop.afterRender(previous, assessment)
-        val prompt = buildAfterRenderPrompt(assessment, feedback)
-        val suggestions = generateFiveSuggestions(prompt, fallback.suggestions)
-        return fallback.copy(suggestions = suggestions)
+        val userFeedback = feedback?.toSuggestionHint().orEmpty()
+        val ai = requestSuggestions(
+            prompt = "Create exactly 5 next render refinements. Assessment=${gson.toJson(assessment)} Feedback=$userFeedback",
+            fallback = fallback.suggestions
+        )
+        return fallback.copy(suggestions = ai)
     }
 
     fun accept(iteration: SuggestionIteration, suggestionIds: Set<String>): SuggestionIteration =
         fallbackLoop.accept(iteration, suggestionIds)
 
-    private suspend fun generateFiveSuggestions(
-        prompt: String,
-        fallback: List<Suggestion>
-    ): List<Suggestion> {
+    private suspend fun requestSuggestions(prompt: String, fallback: List<Suggestion>): List<Suggestion> {
         val response = providerRegistry.activeTextChain()
-            .generate(prompt = prompt, systemPrompt = SYSTEM_PROMPT)
-            .getOrElse { return fallback.take(MAX_VISIBLE_SUGGESTIONS) }
-
-        val json = extractJsonObject(response) ?: return fallback.take(MAX_VISIBLE_SUGGESTIONS)
-        val parsed = runCatching { gson.fromJson(json, SuggestionsResponse::class.java) }.getOrNull()
-            ?: return fallback.take(MAX_VISIBLE_SUGGESTIONS)
-
-        val cleaned = parsed.suggestions
-            .mapIndexedNotNull { index, suggestion -> suggestion.toSafeSuggestion(index) }
-            .distinctBy { it.id }
-            .sortedByDescending { it.impact }
-            .take(MAX_VISIBLE_SUGGESTIONS)
-
-        return cleaned.ifEmpty { fallback.take(MAX_VISIBLE_SUGGESTIONS) }
+            .generate(prompt = prompt + JSON_RULES, systemPrompt = SYSTEM_PROMPT)
+            .getOrElse { return fillToFive(fallback) }
+        val parsed = extractJsonObject(response)
+            ?.let { runCatching { gson.fromJson(it, SuggestionsResponse::class.java) }.getOrNull() }
+            ?.suggestions
+            .orEmpty()
+        return fillToFive(parsed.mapIndexedNotNull { index, suggestion -> suggestion.safe(index) } + fallback)
     }
 
-    private fun buildAfterAnalysisPrompt(analysis: SketchAnalysis): String = """
-        The user finished drawing. Based on this AI analysis, return exactly 5 suggestions that will help the user improve the design before rendering.
+    private fun fillToFive(input: List<Suggestion>): List<Suggestion> =
+        (input + DEFAULT_SUGGESTIONS)
+            .distinctBy { it.id }
+            .take(MAX_VISIBLE_SUGGESTIONS)
 
-        Goals:
-        - Keep the user's original idea and motif identity.
-        - Improve realism, line quality, cultural authenticity, surface fit, composition, and render readiness.
-        - Suggestions must be selectable by the user, not automatic commands.
-        - Each previewHint must be useful inside an image-render prompt.
-
-        Analysis:
-        ${gson.toJson(analysis)}
-
-        Return ONLY JSON in this exact shape:
-        {
-          "suggestions": [
-            {
-              "id": "short-stable-id",
-              "category": "LINE|SYMMETRY|TEMPLATE|CULTURAL|PRINT|COLOR",
-              "location": {"x":0.0,"y":0.0,"w":1.0,"h":1.0},
-              "title": "short user-facing title",
-              "explanation": "why this helps",
-              "principle": "design principle",
-              "culturalContext": "cultural/material context",
-              "impact": 1,
-              "autoFixable": true,
-              "previewHint": "instruction to apply if user accepts"
-            }
-          ]
-        }
-    """.trimIndent()
-
-    private fun buildAfterRenderPrompt(
-        assessment: RenderAssessment,
-        feedback: SatisfactionFeedback?
-    ): String = """
-        The user already rendered once. Based on this render assessment and optional user feedback, return exactly 5 next-step refinement suggestions.
-
-        Goals:
-        - Correct the weakest quality dimensions first.
-        - Preserve what the user likes.
-        - Move closer to the user's mental image, not a random new style.
-        - Each previewHint must be ready to append to the next render prompt.
-
-        Render assessment:
-        ${gson.toJson(assessment)}
-
-        User feedback:
-        ${feedback?.toSuggestionHint().orEmpty()}
-
-        Return ONLY JSON with the same SuggestionsResponse shape and exactly 5 suggestions.
-    """.trimIndent()
-
-    private fun Suggestion.toSafeSuggestion(index: Int): Suggestion? = runCatching {
-        val safeRect = NormalizedRect(
-            x = location.x.coerceIn(0f, 1f),
-            y = location.y.coerceIn(0f, 1f),
-            w = location.w.coerceIn(0f, 1f),
-            h = location.h.coerceIn(0f, 1f)
-        )
+    private fun Suggestion.safe(index: Int): Suggestion? = runCatching {
         copy(
             id = id.ifBlank { "ai-suggestion-${index + 1}" },
-            location = safeRect,
+            location = NormalizedRect(
+                x = location.x.coerceIn(0f, 1f),
+                y = location.y.coerceIn(0f, 1f),
+                w = location.w.coerceIn(0f, 1f),
+                h = location.h.coerceIn(0f, 1f)
+            ),
             title = title.ifBlank { "Improve design quality" }.take(MAX_TITLE_CHARS),
-            explanation = explanation.ifBlank { "This makes the next render closer to the user's vision." }.take(MAX_BODY_CHARS),
-            principle = principle.ifBlank { "Improve realism while preserving structure." }.take(MAX_BODY_CHARS),
+            explanation = explanation.ifBlank { "Move the next render closer to the user's vision." }.take(MAX_BODY_CHARS),
+            principle = principle.ifBlank { "Preserve structure while improving realism." }.take(MAX_BODY_CHARS),
             culturalContext = culturalContext.ifBlank { "Preserve cultural authenticity." }.take(MAX_BODY_CHARS),
             impact = impact.coerceIn(1, 10),
             previewHint = previewHint.ifBlank { title }.take(MAX_HINT_CHARS)
@@ -140,7 +87,14 @@ class AiSuggestionEngine @Inject constructor(
         const val MAX_TITLE_CHARS = 72
         const val MAX_BODY_CHARS = 220
         const val MAX_HINT_CHARS = 260
-        const val SYSTEM_PROMPT =
-            "You are Mawaai's design coach. Produce concise, culturally respectful, photorealism-focused suggestions. Return valid JSON only."
+        const val SYSTEM_PROMPT = "You are Mawaai's design coach. Return valid JSON only."
+        const val JSON_RULES = " Return JSON only as {\"suggestions\":[{\"id\":\"id\",\"category\":\"LINE\",\"location\":{\"x\":0.0,\"y\":0.0,\"w\":1.0,\"h\":1.0},\"title\":\"title\",\"explanation\":\"why\",\"principle\":\"principle\",\"culturalContext\":\"context\",\"impact\":8,\"autoFixable\":true,\"previewHint\":\"render instruction\"}]} with exactly 5 suggestions."
+        val DEFAULT_SUGGESTIONS = listOf(
+            Suggestion("default-realism", Suggestion.Category.PRINT, NormalizedRect(0f, 0f, 1f, 1f), "Make it more realistic", "Push the result toward real product photography.", "Photorealism needs believable material and camera behavior.", "Preserve cultural identity.", 10, true, "Increase photorealism, natural camera response, realistic material texture, and believable manufacture"),
+            Suggestion("default-structure", Suggestion.Category.SYMMETRY, NormalizedRect(0f, 0f, 1f, 1f), "Preserve the original drawing", "Keep the user's motif layout and proportions locked.", "The sketch is the source of truth.", "Preserve user intent.", 10, true, "Preserve motif positions, proportions, symmetry, spacing, and primary design identity"),
+            Suggestion("default-material", Suggestion.Category.TEMPLATE, NormalizedRect(0f, 0f, 1f, 1f), "Blend into the surface", "Make the design inherit folds, pores, glaze, grain, or seams.", "Material integration prevents the sticker look.", "Respect target surface tradition.", 9, true, "Integrate artwork into material texture with occlusion, grain, folds, glaze, and surface response"),
+            Suggestion("default-lighting", Suggestion.Category.COLOR, NormalizedRect(0f, 0f, 1f, 1f), "Fix lighting and shadows", "Match highlights and shadows to the scene.", "Lighting consistency sells realism.", "Keep natural color behavior.", 8, true, "Match scene lighting, add ambient occlusion, contact shadows, and consistent highlights"),
+            Suggestion("default-premium", Suggestion.Category.CULTURAL, NormalizedRect(0f, 0f, 1f, 1f), "Add premium finish", "Add subtle high-end details without changing the idea.", "Premium detail should be controlled and intentional.", "Preserve cultural authenticity.", 8, true, "Add premium finish, refined microdetail, elegant spacing, and realistic edges")
+        )
     }
 }
