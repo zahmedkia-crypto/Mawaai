@@ -7,17 +7,6 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * Drives the creative loop after the user finishes drawing:
- *
- * 1. Analyze drawing.
- * 2. Show five focused AI suggestions.
- * 3. User accepts any subset.
- * 4. Render with accepted suggestions.
- * 5. Assess render.
- * 6. Show five new refinement suggestions.
- * 7. Repeat until the user is happy.
- */
 data class SuggestionIteration(
     val round: Int,
     val stage: Stage,
@@ -34,37 +23,13 @@ data class SuggestionIteration(
 class IterativeSuggestionLoop @Inject constructor() {
 
     fun afterAnalysis(analysis: SketchAnalysis): SuggestionIteration {
-        return SuggestionIteration(
-            round = 1,
-            stage = SuggestionIteration.Stage.AFTER_ANALYSIS,
-            suggestions = buildInitialSuggestions(analysis).take(MAX_VISIBLE_SUGGESTIONS)
-        )
-    }
-
-    fun afterRender(
-        previous: SuggestionIteration,
-        assessment: RenderAssessment
-    ): SuggestionIteration {
-        return SuggestionIteration(
-            round = previous.round + 1,
-            stage = SuggestionIteration.Stage.AFTER_RENDER,
-            suggestions = buildRenderRefinementSuggestions(assessment).take(MAX_VISIBLE_SUGGESTIONS)
-        )
-    }
-
-    fun accept(iteration: SuggestionIteration, suggestionIds: Set<String>): SuggestionIteration {
-        val visibleIds = iteration.suggestions.map { it.id }.toSet()
-        return iteration.copy(acceptedSuggestionIds = suggestionIds.intersect(visibleIds))
-    }
-
-    private fun buildInitialSuggestions(analysis: SketchAnalysis): List<Suggestion> {
         val findings = analysis.findings.sortedByDescending { severityWeight(it.severity) }
         val fromFindings = findings.mapIndexed { index, finding ->
             Suggestion(
                 id = "analysis-${finding.id.ifBlank { UUID.randomUUID().toString() }}",
                 category = finding.toSuggestionCategory(),
                 location = finding.region,
-                title = finding.what.takeIf { it.isNotBlank() } ?: "Improve drawing detail",
+                title = finding.what.ifBlank { "Improve drawing detail" },
                 explanation = finding.why,
                 principle = finding.principle,
                 culturalContext = finding.culturalContext,
@@ -73,130 +38,51 @@ class IterativeSuggestionLoop @Inject constructor() {
                 previewHint = "Improve ${finding.what.lowercase()} while preserving ${analysis.sketchStructure.mustPreserve.joinToString()}"
             )
         }
-
-        val strategic = listOf(
-            Suggestion(
-                id = "analysis-line-quality",
-                category = Suggestion.Category.LINE,
-                location = FULL_CANVAS,
-                title = "Clean and sharpen line quality",
-                explanation = "Reduce shaky edges and make important strokes more confident before rendering.",
-                principle = "Cleaner source lines produce more realistic generated details.",
-                culturalContext = analysis.culturalOrigin,
-                impact = analysis.lineQuality.shakiness.coerceIn(5, 10),
-                autoFixable = true,
-                previewHint = "Sharpen linework, preserve motif identity, keep handmade character"
-            ),
-            Suggestion(
-                id = "analysis-surface-fit",
-                category = Suggestion.Category.TEMPLATE,
-                location = FULL_CANVAS,
-                title = "Improve fit to target surface",
-                explanation = analysis.templateMapping.surfaceFitNotes.ifBlank { "Adapt motif scale and placement to the selected template surface." },
-                principle = "Designs look real when scale, density, and placement match the physical surface.",
-                culturalContext = analysis.culturalOrigin,
-                impact = (10 - analysis.templateFit.scaleMatch / 12).coerceIn(5, 10),
-                autoFixable = true,
-                previewHint = "Resize and position motifs for ${analysis.templateMapping.surfaceType} and ${analysis.templateMapping.primaryZone}"
-            ),
-            Suggestion(
-                id = "analysis-realism-prep",
-                category = Suggestion.Category.PRINT,
-                location = FULL_CANVAS,
-                title = "Prepare for photoreal rendering",
-                explanation = "Add material-aware details so the final image looks manufactured, painted, embroidered, carved, or applied naturally.",
-                principle = "Rendering needs surface-aware texture and lighting cues, not only decorative shapes.",
-                culturalContext = analysis.culturalOrigin,
-                impact = 9,
-                autoFixable = true,
-                previewHint = "Add surface texture cues, contact shadows, material thickness, and realistic edge behavior"
-            )
+        return SuggestionIteration(
+            round = 1,
+            stage = SuggestionIteration.Stage.AFTER_ANALYSIS,
+            suggestions = fillToFive(fromFindings + analysisDefaults(analysis))
         )
-
-        return (fromFindings + strategic).distinctBy { it.id }
     }
 
-    private fun buildRenderRefinementSuggestions(assessment: RenderAssessment): List<Suggestion> {
-        val suggestions = mutableListOf<Suggestion>()
-        if (assessment.realism < RenderAssessment.REALISM_MIN) {
-            suggestions += refinement(
-                id = "render-realism",
-                category = Suggestion.Category.PRINT,
-                title = "Make the render more real",
-                explanation = "The result still looks too digital or pasted. Push it toward real product photography.",
-                impact = 10,
-                previewHint = "Increase photorealism, natural camera response, realistic surface defects, and believable manufacture"
-            )
-        }
-        if (assessment.structurePreservation < RenderAssessment.STRUCTURE_MIN) {
-            suggestions += refinement(
-                id = "render-structure",
-                category = Suggestion.Category.SYMMETRY,
-                title = "Restore the original drawing structure",
-                explanation = "The AI changed too much from the user's idea. Lock the motif layout more strongly.",
-                impact = 10,
-                previewHint = "Preserve motif positions, proportions, symmetry, spacing, and primary design identity"
-            )
-        }
-        if (assessment.materialIntegration < RenderAssessment.MATERIAL_MIN) {
-            suggestions += refinement(
-                id = "render-material",
-                category = Suggestion.Category.TEMPLATE,
-                title = "Blend design into the material",
-                explanation = "The design should inherit folds, pores, glaze, grain, seams, or curvature from the target surface.",
-                impact = 9,
-                previewHint = "Integrate artwork into material texture with occlusion, grain, folds, glaze, and surface response"
-            )
-        }
-        if (assessment.lightingConsistency < RenderAssessment.LIGHTING_MIN) {
-            suggestions += refinement(
-                id = "render-lighting",
-                category = Suggestion.Category.COLOR,
-                title = "Fix lighting and shadows",
-                explanation = "Highlights and shadows should match the scene so the artwork belongs to the photo.",
-                impact = 8,
-                previewHint = "Match scene lighting, add ambient occlusion, contact shadows, and consistent highlights"
-            )
-        }
-
-        suggestions += listOf(
-            refinement(
-                id = "render-premium-finish",
-                category = Suggestion.Category.PRINT,
-                title = "Add premium finish",
-                explanation = "Give the result a final professional finish with subtle imperfections and high-end product detail.",
-                impact = 8,
-                previewHint = "Add premium product finish, microtexture, realistic edges, and refined camera depth"
-            ),
-            refinement(
-                id = "render-user-intent",
-                category = Suggestion.Category.CULTURAL,
-                title = "Move closer to user intent",
-                explanation = "Keep refining until the result matches the image the user has in mind.",
-                impact = 9,
-                previewHint = "Make the design closer to the user's intent while preserving cultural authenticity and realistic material behavior"
-            )
+    fun afterRender(previous: SuggestionIteration, assessment: RenderAssessment): SuggestionIteration {
+        val targeted = mutableListOf<Suggestion>()
+        if (assessment.realism < RenderAssessment.REALISM_MIN) targeted += refinement("render-realism", Suggestion.Category.PRINT, "Make the render more real", "The result still looks too digital or pasted.", 10, "Increase photorealism, natural camera response, realistic surface defects, and believable manufacture")
+        if (assessment.structurePreservation < RenderAssessment.STRUCTURE_MIN) targeted += refinement("render-structure", Suggestion.Category.SYMMETRY, "Restore the original drawing structure", "The AI changed too much from the user's idea.", 10, "Preserve motif positions, proportions, symmetry, spacing, and primary design identity")
+        if (assessment.materialIntegration < RenderAssessment.MATERIAL_MIN) targeted += refinement("render-material", Suggestion.Category.TEMPLATE, "Blend design into the material", "The design should inherit folds, pores, glaze, grain, seams, or curvature.", 9, "Integrate artwork into material texture with occlusion, grain, folds, glaze, and surface response")
+        if (assessment.lightingConsistency < RenderAssessment.LIGHTING_MIN) targeted += refinement("render-lighting", Suggestion.Category.COLOR, "Fix lighting and shadows", "Highlights and shadows should match the scene.", 8, "Match scene lighting, add ambient occlusion, contact shadows, and consistent highlights")
+        return SuggestionIteration(
+            round = previous.round + 1,
+            stage = SuggestionIteration.Stage.AFTER_RENDER,
+            suggestions = fillToFive(targeted + renderDefaults)
         )
-
-        return suggestions.distinctBy { it.id }
     }
 
-    private fun refinement(
-        id: String,
-        category: Suggestion.Category,
-        title: String,
-        explanation: String,
-        impact: Int,
-        previewHint: String
-    ): Suggestion = Suggestion(
+    fun accept(iteration: SuggestionIteration, suggestionIds: Set<String>): SuggestionIteration {
+        val visibleIds = iteration.suggestions.map { it.id }.toSet()
+        return iteration.copy(acceptedSuggestionIds = suggestionIds.intersect(visibleIds))
+    }
+
+    private fun fillToFive(suggestions: List<Suggestion>): List<Suggestion> =
+        (suggestions + renderDefaults).distinctBy { it.id }.take(MAX_VISIBLE_SUGGESTIONS)
+
+    private fun analysisDefaults(analysis: SketchAnalysis): List<Suggestion> = listOf(
+        refinement("analysis-line-quality", Suggestion.Category.LINE, "Clean and sharpen line quality", "Reduce shaky edges and make important strokes more confident before rendering.", analysis.lineQuality.shakiness.coerceIn(5, 10), "Sharpen linework, preserve motif identity, keep handmade character"),
+        refinement("analysis-surface-fit", Suggestion.Category.TEMPLATE, "Improve fit to target surface", analysis.templateMapping.surfaceFitNotes.ifBlank { "Adapt motif scale and placement to the selected template surface." }, 9, "Resize and position motifs for ${analysis.templateMapping.surfaceType} and ${analysis.templateMapping.primaryZone}"),
+        refinement("analysis-realism-prep", Suggestion.Category.PRINT, "Prepare for photoreal rendering", "Add material-aware details so the final image looks manufactured, painted, embroidered, carved, or applied naturally.", 9, "Add surface texture cues, contact shadows, material thickness, and realistic edge behavior"),
+        refinement("analysis-balance", Suggestion.Category.SYMMETRY, "Improve balance and hierarchy", analysis.composition.hierarchyNotes.ifBlank { "Make the most important motif clearer and balance supporting details around it." }, 8, "Strengthen visual hierarchy, balance negative space, and keep the main motif dominant"),
+        refinement("analysis-premium-detail", Suggestion.Category.CULTURAL, "Add premium cultural detailing", "Refine the design with culturally respectful small details that feel intentional and high-end.", 8, "Add refined cultural detail, elegant spacing, and premium finish without changing the core idea")
+    )
+
+    private fun refinement(id: String, category: Suggestion.Category, title: String, explanation: String, impact: Int, previewHint: String): Suggestion = Suggestion(
         id = id,
         category = category,
         location = FULL_CANVAS,
         title = title,
         explanation = explanation,
-        principle = "Iterative refinement improves the render by correcting only the weakest quality dimensions.",
+        principle = "Iterative refinement improves the weakest quality dimensions while preserving the user idea.",
         culturalContext = "Preserve cultural identity and user intent.",
-        impact = impact,
+        impact = impact.coerceIn(1, 10),
         autoFixable = true,
         previewHint = previewHint
     )
@@ -216,5 +102,12 @@ class IterativeSuggestionLoop @Inject constructor() {
     private companion object {
         const val MAX_VISIBLE_SUGGESTIONS = 5
         val FULL_CANVAS = NormalizedRect(0f, 0f, 1f, 1f)
+        val renderDefaults = listOf(
+            Suggestion("render-premium-finish", Suggestion.Category.PRINT, FULL_CANVAS, "Add premium finish", "Give the result a final professional finish with subtle imperfections and high-end detail.", "Premium realism comes from controlled imperfections.", "Preserve cultural identity and user intent.", 8, true, "Add premium product finish, microtexture, realistic edges, and refined camera depth"),
+            Suggestion("render-user-intent", Suggestion.Category.CULTURAL, FULL_CANVAS, "Move closer to user intent", "Keep refining until the result matches the image the user has in mind.", "Every iteration should move closer to the user's mental image.", "Preserve cultural authenticity.", 9, true, "Make the design closer to the user's intent while preserving cultural authenticity and realistic material behavior"),
+            Suggestion("render-fine-detail", Suggestion.Category.LINE, FULL_CANVAS, "Increase fine detail clarity", "Make small motifs readable without adding noise.", "Detail should stay crisp and controlled.", "Respect traditional motif readability.", 7, true, "Improve fine detail clarity, crisp edges, and readable small motifs while avoiding noise"),
+            Suggestion("render-color-polish", Suggestion.Category.COLOR, FULL_CANVAS, "Polish color and contrast", "Tune colors so the result feels richer and more natural.", "Color realism depends on material-appropriate saturation.", "Keep natural color behavior.", 7, true, "Refine color harmony, natural contrast, and material-appropriate saturation"),
+            Suggestion("render-luxury-variant", Suggestion.Category.TEMPLATE, FULL_CANVAS, "Try a more luxurious version", "Create a more premium variant while keeping the same structure.", "Luxury should enhance, not replace, the idea.", "Preserve motif identity.", 8, true, "Make a more luxurious premium version without changing motif structure or user intent")
+        )
     }
 }
