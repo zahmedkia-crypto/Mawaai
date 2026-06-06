@@ -240,6 +240,7 @@ private fun CategoryChip(label: String, color: Color) {
 
 @Composable
 private fun ImpactBar(impact: Int) {
+    val normalizedImpact = impact.coerceIn(0, 10)
     Column {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -251,14 +252,14 @@ private fun ImpactBar(impact: Int) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                text = "$impact / 100",
+                text = "$normalizedImpact / 10",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         Spacer(modifier = Modifier.height(4.dp))
         LinearProgressIndicator(
-            progress = { (impact.coerceIn(0, 100)) / 100f },
+            progress = normalizedImpact / 10f,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(6.dp)
