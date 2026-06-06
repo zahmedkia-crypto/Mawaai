@@ -170,7 +170,7 @@ fun SatisfactionFeedbackPanel(
                 fontWeight = FontWeight.Bold
             )
             LinearProgressIndicator(
-                progress = { feedback.closenessToIntentPct / 100f },
+                progress = feedback.closenessToIntentPct / 100f,
                 modifier = Modifier.fillMaxWidth()
             )
             Slider(
