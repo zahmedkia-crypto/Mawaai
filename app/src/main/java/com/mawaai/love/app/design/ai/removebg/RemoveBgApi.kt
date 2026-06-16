@@ -4,6 +4,7 @@ import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import okhttp3.ResponseBody
 import retrofit2.Response
+import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.Multipart
 import retrofit2.http.POST
@@ -39,4 +40,21 @@ interface RemoveBgApi {
         @Part imagePart: MultipartBody.Part,
         @Part("size") size: RequestBody
     ): Response<ResponseBody>
+
+    /**
+     * Returns the account's remaining quota. The client uses this for the
+     * MT-011 pre-flight check so we never burn upload bandwidth on a call
+     * that we already know will 402.
+     *
+     * Endpoint reference:
+     *   GET https://api.remove.bg/v1.0/account
+     *
+     * Free tier: 50 preview-resolution calls per calendar month. Higher
+     * sizes consume credit balance. The response separates the two so the
+     * client can decide which is relevant for the requested size.
+     */
+    @GET("v1.0/account")
+    suspend fun getAccount(
+        @Header("X-Api-Key") apiKey: String
+    ): Response<RemoveBgAccountResponse>
 }
