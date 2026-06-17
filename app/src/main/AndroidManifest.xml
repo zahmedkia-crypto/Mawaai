@@ -30,7 +30,8 @@
         android:theme="@style/Theme.Mawaai.Splash"
         android:hardwareAccelerated="true"
         android:largeHeap="true"
-        tools:targetApi="34">
+        android:enableOnBackInvokedCallback="true"
+        tools:targetApi="35">
         
         <activity
             android:name=".MainActivity"
