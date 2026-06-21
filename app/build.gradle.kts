@@ -170,7 +170,6 @@ dependencies {
     implementation(libs.datastore.preferences)
     implementation(libs.splashscreen)
     implementation(libs.androidx.palette)
-    implementation(libs.accompanist.systemuicontroller)
     implementation(libs.accompanist.permissions)
     
     // Networking
